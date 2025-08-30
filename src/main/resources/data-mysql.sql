@@ -34,12 +34,14 @@ VALUES
 (2, 5, 1, NOW()),
 (2, 6, 2, NOW());
 
--- 콘텐츠 데이터
+-- 콘텐츠 데이터 (유튜브 쇼츠 위주)
 INSERT INTO contents (title, description, type, genre, creator, release_year, image_url, external_link, emotion_tags, rating, created_at, updated_at)
 VALUES 
-('해리 포터와 마법사의 돌', '11살 생일에 자신이 마법사라는 사실을 알게 된 해리 포터의 마법 세계 모험', 'BOOK', '판타지', 'J.K. 롤링', 1997, 'https://example.com/images/harry-potter.jpg', 'https://www.amazon.com/Harry-Potter-Sorcerers-Stone-Rowling/dp/059035342X', 'exciting,adventure,magical', 4.8, NOW(), NOW()),
-('인셉션', '꿈 속의 꿈을 탐험하는 도둑들의 이야기', 'MOVIE', 'SF', '크리스토퍼 놀란', 2010, 'https://example.com/images/inception.jpg', 'https://www.netflix.com/title/70131314', 'exciting,thoughtful,mind-bending', 4.8, NOW(), NOW()),
-('Dynamite', '밝고 경쾌한 디스코 팝 곡', 'MUSIC', '팝', 'BTS', 2020, 'https://example.com/images/dynamite.jpg', 'https://www.youtube.com/watch?v=gdZLi9oWNZg', 'happy,upbeat,energetic', 4.8, NOW(), NOW());
+('귀여운 고양이 쇼츠', '스트레스 해소에 딱 좋은 귀여운 고양이 영상 모음', 'YOUTUBE_SHORTS', '힐링', 'Cat Videos', 2024, 'https://example.com/images/cat-shorts.jpg', 'https://www.youtube.com/shorts/8QYHF8I3v9U', 'relaxing,healing,happy', 4.9, NOW(), NOW()),
+('웃음 가득한 개그 쇼츠', '하루의 스트레스를 날려버릴 웃픈 개그 영상', 'YOUTUBE_SHORTS', '코미디', 'Comedy Shorts', 2024, 'https://example.com/images/comedy-shorts.jpg', 'https://www.youtube.com/shorts/dQw4w9WgXcQ', 'happy,funny,exciting', 4.7, NOW(), NOW()),
+('힐링 음악 쇼츠', '마음이 편안해지는 잔잔한 음악과 풍경', 'YOUTUBE_SHORTS', '음악', 'Healing Music', 2024, 'https://example.com/images/healing-music.jpg', 'https://www.youtube.com/shorts/8QYHF8I3v9U', 'relaxing,calm,healing', 4.8, NOW(), NOW()),
+('동기부여 영상 쇼츠', '힘이 나는 동기부여 명언과 성공 스토리', 'YOUTUBE_SHORTS', '동기부여', 'Motivation Daily', 2024, 'https://example.com/images/motivation-shorts.jpg', 'https://www.youtube.com/shorts/dQw4w9WgXcQ', 'inspiring,motivating,positive', 4.6, NOW(), NOW()),
+('요가 명상 쇼츠', '집에서 쉽게 따라할 수 있는 요가와 명상', 'YOUTUBE_SHORTS', '웰빙', 'Yoga Life', 2024, 'https://example.com/images/yoga-shorts.jpg', 'https://www.youtube.com/shorts/8QYHF8I3v9U', 'relaxing,healing,calm', 4.5, NOW(), NOW());
 
 -- 문화 콘텐츠 샘플 데이터 (기존 data.sql 파일 내용 기반)
 INSERT INTO contents (title, description, type, genre, creator, release_year, image_url, external_link, emotion_tags, rating, created_at, updated_at) VALUES

@@ -68,7 +68,10 @@ public class ContentController {
         
         List<Content> contents = contentService.getRecommendationsByEmotion(emotion);
         
-        List<ContentResponse> responses = contents.stream()
+        // 추천을 5개로 제한
+        List<Content> limitedContents = contents.stream().limit(5).toList();
+        
+        List<ContentResponse> responses = limitedContents.stream()
                 .map(ContentResponse::fromEntity)
                 .collect(Collectors.toList());
         

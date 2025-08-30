@@ -29,12 +29,14 @@ public class AsyncProcessingService {
     private final ProcessingJobRepository jobRepository;
     private final ChatService chatService;
     private final UserRepository userRepository;
+    private final OpenSmileService openSmileService;
 
     @Autowired
-    public AsyncProcessingService(ProcessingJobRepository jobRepository, ChatService chatService, UserRepository userRepository) {
+    public AsyncProcessingService(ProcessingJobRepository jobRepository, ChatService chatService, UserRepository userRepository, OpenSmileService openSmileService) {
         this.jobRepository = jobRepository;
         this.chatService = chatService;
         this.userRepository = userRepository;
+        this.openSmileService = openSmileService;
     }
 
     public ProcessingJob createJob(Long userId) {
@@ -54,9 +56,7 @@ public class AsyncProcessingService {
     @Async("taskExecutor")
     public Future<ProcessingJob> runTranscriptionAndAnalysis(String jobId, String filePath, String language, Long chatSessionId, OpenAIService openAIService) {
     // openSMILE 실행파일 및 config 경로 (macOS 빌드 기준)
-    final String openSmileExecPath = "/Users/ryugi62/Desktop/해커톤/opensmile/build/progsrc/smilextract/SMILExtract";
     final String openSmileConfigPath = "/Users/ryugi62/Desktop/해커톤/opensmile/config/is09-13/IS13_ComParE.conf";
-    OpenSmileService openSmileService = new OpenSmileService(openSmileExecPath);
         System.out.println("[AsyncProcessing] 작업 시작 - jobId: " + jobId + ", filePath: " + filePath);
 
         ProcessingJob j = jobRepository.findById(jobId).orElse(null);
