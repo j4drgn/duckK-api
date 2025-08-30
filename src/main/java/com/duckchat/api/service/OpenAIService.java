@@ -103,11 +103,10 @@ public class OpenAIService {
         .content(systemMessage + " 답변은 짧고 빠르게 해줘.")
         .build());
 
-        // 사용자 메시지 추가 (음성 입력임을 표시)
-        String voiceIndicator = voiceMetadata != null ? " [음성 입력] " : "";
+        // 사용자 메시지 추가
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("user")
-                .content(voiceIndicator + userMessage)
+                .content(userMessage)
                 .build());
 
         java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -221,10 +220,10 @@ public class OpenAIService {
 
             // 유효한 메타데이터가 없는 경우 기본 메시지
             if (!hasValidMetadata) {
-                systemMessage.append("사용자의 음성 입력을 받고 있어요. 더 자연스럽고 친근한 응답을 해주세요. ");
+                // Removed explicit voice input message
             }
         } else {
-            systemMessage.append("사용자의 음성 입력을 받고 있어요. 더 자연스럽고 친근한 응답을 해주세요. ");
+            // Removed explicit voice input message
         }
 
         systemMessage.append("사용자의 감정을 잘 이해하고 공감해줘. 재미있고 귀엽게 응답해줘. 문화 콘텐츠(책, 영화, 음악 등) 추천도 해줄게~");
@@ -294,11 +293,10 @@ public class OpenAIService {
             messages.add(messageHistory.get(i));
         }
 
-        // 새로운 사용자 메시지 추가 (음성 입력임을 표시)
-        String voiceIndicator = voiceMetadata != null ? " [음성 입력] " : "";
+        // 새로운 사용자 메시지 추가
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("user")
-                .content(voiceIndicator + userMessage)
+                .content(userMessage)
                 .build());
 
         try {
