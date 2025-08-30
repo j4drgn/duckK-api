@@ -36,6 +36,10 @@ public class ChatController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChatMessageRequest request) {
         
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
+        
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
         
@@ -48,6 +52,10 @@ public class ChatController {
     public ResponseEntity<ApiResponse<Page<ChatMessage>>> getUserMessages(
             @AuthenticationPrincipal UserDetails userDetails,
             Pageable pageable) {
+        
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
         
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
@@ -62,6 +70,10 @@ public class ChatController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChatSessionRequest request) {
         
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
+        
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
         
@@ -74,6 +86,10 @@ public class ChatController {
     public ResponseEntity<ApiResponse<Page<ChatSession>>> getUserSessions(
             @AuthenticationPrincipal UserDetails userDetails,
             Pageable pageable) {
+        
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
         
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
@@ -88,6 +104,10 @@ public class ChatController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable("id") Long sessionId) {
         
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
+        
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
         
@@ -101,6 +121,10 @@ public class ChatController {
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSessionMessages(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable("id") Long sessionId) {
+        
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
         
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
@@ -131,6 +155,10 @@ public class ChatController {
             @PathVariable("id") Long sessionId,
             @Valid @RequestBody ChatSessionRequest request) {
         
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
+        
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
         
@@ -143,6 +171,10 @@ public class ChatController {
     public ResponseEntity<ApiResponse<Void>> deleteSession(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable("id") Long sessionId) {
+        
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증이 필요합니다.");
+        }
         
         User user = userRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
