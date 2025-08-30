@@ -36,15 +36,15 @@ public class OpenAIService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(openAIConfig.getOpenaiApiKey());
 
-        ChatCompletionRequest request = ChatCompletionRequest.builder()
-                .model("gpt-3.5-turbo")
-                .messages(messages)
-                .temperature(0.7)
-                .max_tokens(1000)
-                .top_p(1.0)
-                .frequency_penalty(0.0)
-                .presence_penalty(0.0)
-                .build();
+    ChatCompletionRequest request = ChatCompletionRequest.builder()
+        .model("gpt-3.5-turbo-instant") // turbo-instant로 변경
+        .messages(messages)
+        .temperature(0.5) // 더 빠른 응답을 위해 낮춤
+        .max_tokens(256) // 응답 길이 제한
+        .top_p(0.8) // 다양성 제한
+        .frequency_penalty(0.0)
+        .presence_penalty(0.0)
+        .build();
 
         HttpEntity<ChatCompletionRequest> entity = new HttpEntity<>(request, headers);
 
@@ -63,11 +63,11 @@ public class OpenAIService {
     public String generateResponse(String userMessage) {
         List<ChatCompletionRequest.Message> messages = new ArrayList<>();
 
-        // 시스템 메시지 추가 - 챗봇의 성격과 역할 정의
-        messages.add(ChatCompletionRequest.Message.builder()
-                .role("system")
-                .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 재미있고 귀엽게 응답해줘. 문화 콘텐츠(책, 영화, 음악 등) 추천도 해줄게~")
-                .build());
+    // 시스템 메시지 추가 - 프롬프트 단순화
+    messages.add(ChatCompletionRequest.Message.builder()
+        .role("system")
+        .content("너는 덕키야! 귀엽고 친근한 AI 친구야. 사용자의 감정을 공감하며, 짧고 빠르게 답변해줘.")
+        .build());
 
         // 사용자 메시지 추가
         messages.add(ChatCompletionRequest.Message.builder()
@@ -95,11 +95,12 @@ public class OpenAIService {
         List<ChatCompletionRequest.Message> messages = new ArrayList<>();
 
         // 음성 메타데이터를 고려한 시스템 메시지 생성
-        String systemMessage = buildSystemMessageWithVoiceMetadata(voiceMetadata);
-        messages.add(ChatCompletionRequest.Message.builder()
-                .role("system")
-                .content(systemMessage)
-                .build());
+    String systemMessage = buildSystemMessageWithVoiceMetadata(voiceMetadata);
+    // 프롬프트 단순화: 감정/상황만 간단히 반영
+    messages.add(ChatCompletionRequest.Message.builder()
+        .role("system")
+        .content(systemMessage + " 답변은 짧고 빠르게 해줘.")
+        .build());
 
         // 사용자 메시지 추가 (음성 입력임을 표시)
         String voiceIndicator = voiceMetadata != null ? " [음성 입력] " : "";
@@ -108,20 +109,28 @@ public class OpenAIService {
                 .content(voiceIndicator + userMessage)
                 .build());
 
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
         try {
-            ChatCompletionResponse response = createChatCompletion(messages);
-
-            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
-                String content = response.getChoices().get(0).getMessage().getContent();
-                log.info("OpenAI API response with voice metadata: {}", content);
-                return content;
-            } else {
-                log.warn("OpenAI API 응답이 비어 있습니다.");
-                return getDefaultResponse(userMessage);
-            }
+            java.util.concurrent.Future<String> future = executor.submit(() -> {
+                ChatCompletionResponse response = createChatCompletion(messages);
+                if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+                    String content = response.getChoices().get(0).getMessage().getContent();
+                    log.info("OpenAI API response with voice metadata: {}", content);
+                    return content;
+                } else {
+                    log.warn("OpenAI API 응답이 비어 있습니다.");
+                    return getDefaultResponse(userMessage);
+                }
+            });
+            return future.get(7, java.util.concurrent.TimeUnit.SECONDS); // 7초 제한
+        } catch (java.util.concurrent.TimeoutException e) {
+            log.warn("OpenAI 응답 생성 타임아웃, 기본 응답 반환");
+            return getDefaultResponse(userMessage);
         } catch (Exception e) {
             log.error("OpenAI API 호출 중 오류 발생: {}", e.getMessage());
             return getDefaultResponse(userMessage);
+        } finally {
+            executor.shutdown();
         }
     }
 
@@ -329,69 +338,81 @@ public class OpenAIService {
 
     // 전사 텍스트와 옵션의 VoiceMetadata를 사용해 감정/상황 분석을 수행
     public EmotionAnalysisResult analyzeTranscriptEmotion(String transcript, VoiceMetadata metadata) {
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
         try {
-            // Chat GPT에게 JSON 형식으로 반환하도록 요청
-            List<ChatCompletionRequest.Message> messages = new ArrayList<>();
-            messages.add(ChatCompletionRequest.Message.builder()
-                    .role("system")
-                    .content("당신은 감정 분석가입니다. 아래 사용자의 전사 텍스트를 분석하여 JSON 형식으로 다음 필드를 출력하세요: primaryEmotion (string), emotionScores (map string->float), situationLabel (string), confidence (0.0-1.0), recommendationKeywords (list). 출력 외 다른 텍스트는 포함하지 마세요.")
-                    .build());
-
-            String userContent = "Transcript: " + transcript;
-            if (metadata != null) {
-                userContent += "\nVoiceMetadata: " + metadata.toString();
-            }
-
-            messages.add(ChatCompletionRequest.Message.builder()
-                    .role("user")
-                    .content(userContent)
-                    .build());
-
-            ChatCompletionResponse response = createChatCompletion(messages);
-            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
-                String content = response.getChoices().get(0).getMessage().getContent();
-                EmotionAnalysisResult result = new EmotionAnalysisResult();
-                result.setRawJson(content);
-                // GPT가 JSON만 반환하도록 프롬프트를 주었지만, 여전히 추가 텍스트가 섞일 수 있으므로
-                // 문자열에서 JSON 객체를 찾아 파싱 시도
+            java.util.concurrent.Future<EmotionAnalysisResult> future = executor.submit(() -> {
                 try {
-                    // find first '{' and last '}'
-                    int start = content.indexOf('{');
-                    int end = content.lastIndexOf('}');
-                    String jsonPart = content;
-                    if (start >= 0 && end > start) {
-                        jsonPart = content.substring(start, end + 1);
+                    // 프롬프트를 더 강하게: 반드시 JSON만, 예시 포함, 추가 텍스트 금지
+                    List<ChatCompletionRequest.Message> messages = new ArrayList<>();
+                    messages.add(ChatCompletionRequest.Message.builder()
+                            .role("system")
+                            .content("당신은 감정 분석가입니다. 아래 사용자의 전사 텍스트를 분석하여 반드시 JSON만 반환하세요. 다음 필드를 포함해야 합니다: primaryEmotion (string), emotionScores (map string->float), situationLabel (string), confidence (0.0-1.0), recommendationKeywords (list). 예시: {\"primaryEmotion\":\"분노\",\"emotionScores\":{\"분노\":0.8,\"슬픔\":0.1},\"situationLabel\":\"불쾌한 상황\",\"confidence\":0.92,\"recommendationKeywords\":[\"진정\",\"휴식\"]}. JSON 외 텍스트, 설명, 인사말, 마크다운, 코드블록, 따옴표 등은 절대 포함하지 마세요.")
+                            .build());
+
+                    String userContent = "Transcript: " + transcript;
+                    if (metadata != null) {
+                        userContent += "\nVoiceMetadata: " + metadata.toString();
                     }
-                    JsonNode root = objectMapper.readTree(jsonPart);
-                    if (root.has("primaryEmotion")) {
-                        result.setPrimaryEmotion(root.get("primaryEmotion").asText());
-                    }
-                    if (root.has("confidence")) {
-                        result.setConfidence(root.get("confidence").asDouble());
-                    }
-                    if (root.has("situationLabel")) {
-                        result.setSituationLabel(root.get("situationLabel").asText());
-                    }
-                    if (root.has("recommendationKeywords") && root.get("recommendationKeywords").isArray()) {
-                        List<String> keywords = new ArrayList<>();
-                        for (JsonNode kn : root.get("recommendationKeywords")) {
-                            keywords.add(kn.asText());
+
+                    messages.add(ChatCompletionRequest.Message.builder()
+                            .role("user")
+                            .content(userContent)
+                            .build());
+
+                    ChatCompletionResponse response = createChatCompletion(messages);
+                    if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+                        String content = response.getChoices().get(0).getMessage().getContent();
+                        EmotionAnalysisResult result = new EmotionAnalysisResult();
+                        result.setRawJson(content);
+                        // 반드시 JSON만 반환하도록 프롬프트를 강화했지만, 혹시 모를 예외 처리
+                        try {
+                            int start = content.indexOf('{');
+                            int end = content.lastIndexOf('}');
+                            String jsonPart = content;
+                            if (start >= 0 && end > start) {
+                                jsonPart = content.substring(start, end + 1);
+                            }
+                            JsonNode root = objectMapper.readTree(jsonPart);
+                            if (root.has("primaryEmotion")) {
+                                result.setPrimaryEmotion(root.get("primaryEmotion").asText());
+                            }
+                            if (root.has("confidence")) {
+                                result.setConfidence(root.get("confidence").asDouble());
+                            }
+                            if (root.has("situationLabel")) {
+                                result.setSituationLabel(root.get("situationLabel").asText());
+                            }
+                            if (root.has("recommendationKeywords") && root.get("recommendationKeywords").isArray()) {
+                                List<String> keywords = new ArrayList<>();
+                                for (JsonNode kn : root.get("recommendationKeywords")) {
+                                    keywords.add(kn.asText());
+                                }
+                                result.setRecommendationKeywords(keywords);
+                            }
+                            if (root.has("emotionScores") && root.get("emotionScores").isObject()) {
+                                var map = objectMapper.convertValue(root.get("emotionScores"), java.util.Map.class);
+                                result.setEmotionScores(map);
+                            }
+                        } catch (Exception ex) {
+                            log.warn("Failed to parse GPT analysis JSON: {}", ex.getMessage());
                         }
-                        result.setRecommendationKeywords(keywords);
+                        return result;
                     }
-                    if (root.has("emotionScores") && root.get("emotionScores").isObject()) {
-                        var map = objectMapper.convertValue(root.get("emotionScores"), java.util.Map.class);
-                        result.setEmotionScores(map);
-                    }
-                } catch (Exception ex) {
-                    log.warn("Failed to parse GPT analysis JSON: {}", ex.getMessage());
+                } catch (Exception e) {
+                    log.error("analyzeTranscriptEmotion error: {}", e.getMessage());
                 }
-                return result;
-            }
+                return null;
+            });
+            return future.get(7, java.util.concurrent.TimeUnit.SECONDS); // 7초 제한
+        } catch (java.util.concurrent.TimeoutException e) {
+            log.warn("감정분석 타임아웃, null 반환");
+            return null;
         } catch (Exception e) {
             log.error("analyzeTranscriptEmotion error: {}", e.getMessage());
+            return null;
+        } finally {
+            executor.shutdown();
         }
-        return null;
     }
 
     private String getDefaultResponseWithHistory(List<ChatCompletionRequest.Message> messageHistory, String userMessage) {

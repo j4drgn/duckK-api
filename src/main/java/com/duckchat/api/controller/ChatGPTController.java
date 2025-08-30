@@ -214,13 +214,13 @@ public class ChatGPTController {
                 }
 
                 try {
-                            // 업로드 디렉토리에 저장
-                            File uploadDir = new File(openAIConfig.getUploadDir());
-                            if (!uploadDir.exists()) uploadDir.mkdirs();
-                            File tmp = new File(uploadDir, "upload-" + System.currentTimeMillis() + "-" + audio.getOriginalFilename());
-                        try (FileOutputStream fos = new FileOutputStream(tmp)) {
-                                fos.write(audio.getBytes());
-                        }
+                                        // 업로드 디렉토리에 저장
+                                        File uploadDir = new File(openAIConfig.getUploadDir());
+                                        if (!uploadDir.exists()) uploadDir.mkdirs();
+                                        File tmp = new File(uploadDir, "upload-" + System.currentTimeMillis() + "-" + audio.getOriginalFilename());
+                                        try (FileOutputStream fos = new FileOutputStream(tmp)) {
+                                                fos.write(audio.getBytes());
+                                        }
 
                                         if (async) {
                                                 var job = asyncProcessingService.createJob();
@@ -229,8 +229,20 @@ public class ChatGPTController {
                                                 return ResponseEntity.ok(new ApiResponse<>(true, "작업이 시작되었습니다.", job.getId()));
                                         }
 
-                                        // OpenAI Whisper 전사 호출 (동기)
-                                        String transcriptionRaw = openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko");
+                                        // 동기 처리에서 7초 이상 걸리면 자동으로 비동기 전환
+                                        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+                                        java.util.concurrent.Future<String> future = executor.submit(() -> openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko"));
+                                        String transcriptionRaw;
+                                        try {
+                                                transcriptionRaw = future.get(7, java.util.concurrent.TimeUnit.SECONDS); // 7초 제한
+                                        } catch (java.util.concurrent.TimeoutException e) {
+                                                // 비동기로 전환
+                                                var job = asyncProcessingService.createJob();
+                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", openAIService);
+                                                return ResponseEntity.ok(new ApiResponse<>(true, "오디오 처리에 시간이 소요되어 비동기 처리로 전환되었습니다. 잠시 후 결과를 확인해주세요.", job.getId()));
+                                        } finally {
+                                                executor.shutdown();
+                                        }
 
                                         // API 키가 더미일 경우 기본 텍스트 사용
                                         String transcriptText;
@@ -240,35 +252,35 @@ public class ChatGPTController {
                                                 transcriptText = transcriptionRaw;
                                         }
 
-                        // 감정/상황 분석
-                        // VoiceMetadata 파싱은 생략(클라이언트 metaJson 사용 가능)
-                        var analysis = openAIService.analyzeTranscriptEmotion(transcriptText, null);
+                                        // 감정/상황 분석
+                                        // VoiceMetadata 파싱은 생략(클라이언트 metaJson 사용 가능)
+                                        var analysis = openAIService.analyzeTranscriptEmotion(transcriptText, null);
 
-                        // 기존 저장/대화 흐름 사용: ChatMessage로 사용자 메시지 저장 (전사 텍스트 포함)
-                        ChatRequest request = new ChatRequest();
-                        request.setMessage(transcriptText);
-                        request.setChatSessionId(chatSessionId);
+                                        // 기존 저장/대화 흐름 사용: ChatMessage로 사용자 메시지 저장 (전사 텍스트 포함)
+                                        ChatRequest request = new ChatRequest();
+                                        request.setMessage(transcriptText);
+                                        request.setChatSessionId(chatSessionId);
 
-                        ChatMessage userMessage = chatService.saveMessage(user, buildChatMessageRequest(request, ChatMessage.MessageType.USER));
+                                        ChatMessage userMessage = chatService.saveMessage(user, buildChatMessageRequest(request, ChatMessage.MessageType.USER));
 
-                        // 챗봇 응답 생성 - 분석 결과 반영 가능
-                        String assistantResponse = openAIService.generateResponseWithVoice(transcriptText, null);
+                                        // 챗봇 응답 생성 - 분석 결과 반영 가능
+                                        String assistantResponse = openAIService.generateResponseWithVoice(transcriptText, null);
 
-                        ChatMessage assistantMessage = chatService.saveMessage(user, buildChatMessageRequest(
-                                        assistantResponse, ChatMessage.MessageType.ASSISTANT, chatSessionId));
+                                        ChatMessage assistantMessage = chatService.saveMessage(user, buildChatMessageRequest(
+                                                assistantResponse, ChatMessage.MessageType.ASSISTANT, chatSessionId));
 
-                        ChatResponse response = ChatResponse.builder()
-                                        .id(assistantMessage.getId())
-                                        .content(assistantMessage.getContent())
-                                        .type(assistantMessage.getType())
-                                        .timestamp(assistantMessage.getCreatedAt())
-                                        .chatSessionId(chatSessionId)
-                                        .build();
+                                        ChatResponse response = ChatResponse.builder()
+                                                .id(assistantMessage.getId())
+                                                .content(assistantMessage.getContent())
+                                                .type(assistantMessage.getType())
+                                                .timestamp(assistantMessage.getCreatedAt())
+                                                .chatSessionId(chatSessionId)
+                                                .build();
 
-                        // 임시 파일 삭제
-                        tmp.delete();
+                                        // 임시 파일 삭제
+                                        tmp.delete();
 
-                        return ResponseEntity.ok(new ApiResponse<>(true, "오디오 처리 및 응답 생성 완료", response));
+                                        return ResponseEntity.ok(new ApiResponse<>(true, "오디오 처리 및 응답 생성 완료", response));
                 } catch (Exception e) {
                         log.error("오디오 처리 중 오류 발생: {}", e.getMessage(), e);
                         return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "오디오 처리 중 오류가 발생했습니다: " + e.getMessage(), null));

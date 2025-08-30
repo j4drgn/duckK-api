@@ -38,41 +38,48 @@ public class AsyncProcessingService {
     @Async("taskExecutor")
     public Future<ProcessingJob> runTranscriptionAndAnalysis(String jobId, String filePath, String language, OpenAIService openAIService) {
         System.out.println("🔄 [AsyncProcessing] 작업 시작 - jobId: " + jobId + ", filePath: " + filePath);
-        
+
         ProcessingJob j = jobRepository.findById(jobId).orElse(null);
         if (j == null) {
             System.out.println("❌ [AsyncProcessing] Job을 찾을 수 없음: " + jobId);
             return new AsyncResult<>(null);
         }
-        
+
         System.out.println("🟡 [AsyncProcessing] Job 상태를 RUNNING으로 변경: " + jobId);
         j.setStatus("RUNNING");
         jobRepository.save(j);
-        
+
         try {
-            System.out.println("🎤 [AsyncProcessing] Whisper 전사 시작...");
-            String transcript = openAIService.transcribeAudioFile(filePath, language);
+            // Whisper, 감정분석, AI 응답을 병렬로 처리
+            java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(3);
+            java.util.concurrent.Future<String> transcriptFuture = executor.submit(() -> openAIService.transcribeAudioFile(filePath, language));
+            // transcript가 준비되어야 감정분석/AI 응답이 가능하므로, transcript만 우선 빠르게 처리
+            String transcript = transcriptFuture.get();
             System.out.println("📝 [AsyncProcessing] 전사 완료: " + (transcript != null ? transcript.substring(0, Math.min(50, transcript.length())) + "..." : "null"));
             j.setTranscript(transcript);
-            
-            System.out.println("🧠 [AsyncProcessing] 감정 분석 시작...");
-            EmotionAnalysisResult analysis = openAIService.analyzeTranscriptEmotion(transcript, null);
+            jobRepository.save(j);
+
+            // 감정분석과 AI 응답을 동시에 시작
+            java.util.concurrent.Future<EmotionAnalysisResult> analysisFuture = executor.submit(() -> openAIService.analyzeTranscriptEmotion(transcript, null));
+            java.util.concurrent.Future<String> assistantFuture = executor.submit(() -> openAIService.generateResponseWithVoice(transcript, null));
+
+            EmotionAnalysisResult analysis = analysisFuture.get();
             if (analysis != null) {
                 System.out.println("💭 [AsyncProcessing] 감정 분석 완료: " + analysis.getRawJson());
                 j.setAnalysisJson(analysis.getRawJson());
             } else {
                 System.out.println("⚠️ [AsyncProcessing] 감정 분석 결과 없음");
             }
-            
-            System.out.println("🤖 [AsyncProcessing] AI 응답 생성 시작...");
-            String assistant = openAIService.generateResponseWithVoice(transcript, null);
+
+            String assistant = assistantFuture.get();
             System.out.println("💬 [AsyncProcessing] AI 응답 완료: " + (assistant != null ? assistant.substring(0, Math.min(50, assistant.length())) + "..." : "null"));
             j.setAssistantResponse(assistant);
-            
+
             j.setStatus("DONE");
             jobRepository.save(j);
+            executor.shutdown();
             System.out.println("✅ [AsyncProcessing] 작업 완료: " + jobId);
-            
+
         } catch (Exception e) {
             System.out.println("❌ [AsyncProcessing] 작업 실패 - jobId: " + jobId + ", 오류: " + e.getMessage());
             e.printStackTrace();
