@@ -139,6 +139,19 @@ public class OpenAIService {
         StringBuilder systemMessage = new StringBuilder();
         systemMessage.append("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. ");
 
+        // 감정 요약 정보 추출 및 활용
+        if (metadata != null && metadata.getDetectedEmotions() != null) {
+            try {
+                JsonNode emotionData = objectMapper.readTree(metadata.getDetectedEmotions());
+                if (emotionData.has("emotionSummary")) {
+                    String emotionSummary = emotionData.get("emotionSummary").asText();
+                    systemMessage.append("사용자의 최근 대화 감정 상태: ").append(emotionSummary).append(". 이를 고려하여 공감하고 적절한 응답을 해줘. ");
+                }
+            } catch (Exception e) {
+                // JSON 파싱 실패 시 무시
+            }
+        }
+
         if (metadata != null) {
             boolean hasValidMetadata = false;
 
@@ -272,7 +285,7 @@ public class OpenAIService {
         String systemMessage = buildSystemMessageWithVoiceMetadata(voiceMetadata);
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("system")
-                .content(systemMessage + " 이전 대화 내용을 반드시 기억하고 맥락을 유지하며 답변해줘. 사용자가 이전 대화를 언급하면 구체적으로 회상해서 응답해줘.")
+                .content(systemMessage + " 이전 대화 내용을 반드시 기억하고 맥락을 유지하며 답변해줘. 사용자가 이전 대화를 언급하면 구체적으로 회상해서 응답해줘. 사용자의 감정 상태 변화를 파악하고, 이전 감정(예: 슬픔, 화남)을 고려하여 공감하고 적절한 응답을 해줘. 대화의 연속성을 유지하면서 자연스럽게 이어가줘.")
                 .build());
 
         // 이전 메시지 히스토리 추가 (최근 50개만)

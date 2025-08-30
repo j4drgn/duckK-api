@@ -85,6 +85,7 @@ public class AsyncProcessingService {
 
             // 대화 히스토리 구성 (chatSessionId가 있는 경우)
             List<ChatCompletionRequest.Message> messageHistory = new ArrayList<>();
+            StringBuilder emotionSummary = new StringBuilder();
             if (chatSessionId != null && j.getUserId() != null) {
                 try {
                     User user = userRepository.findById(j.getUserId()).orElse(null);
@@ -96,13 +97,27 @@ public class AsyncProcessingService {
 
                             // 시스템 메시지 추가 (히스토리에 추가하지 않음 - generateResponseWithHistoryAndVoice에서 처리)
 
-                            // 이전 메시지 히스토리 추가
+                            // 이전 메시지 히스토리 추가 (감정 정보 포함)
                             for (ChatSessionMessage sessionMessage : sessionMessages) {
                                 ChatMessage message = sessionMessage.getMessage();
                                 String role = message.getType() == ChatMessage.MessageType.USER ? "user" : "assistant";
+                                String content = message.getContent();
+
+                                // 감정 정보가 있으면 내용에 포함하고 요약에도 추가
+                                if (message.getEmotionType() != null && !message.getEmotionType().isEmpty()) {
+                                    content += " [감정: " + message.getEmotionType() +
+                                              (message.getEmotionScore() != null ? ", 점수: " + String.format("%.2f", message.getEmotionScore()) : "") + "]";
+
+                                    // 최근 3개의 사용자 메시지 감정 요약
+                                    if (role.equals("user") && emotionSummary.length() < 200) { // 요약 길이 제한
+                                        if (emotionSummary.length() > 0) emotionSummary.append(", ");
+                                        emotionSummary.append(message.getEmotionType());
+                                    }
+                                }
+
                                 messageHistory.add(ChatCompletionRequest.Message.builder()
                                         .role(role)
-                                        .content(message.getContent())
+                                        .content(content)
                                         .build());
                             }
                         }
@@ -145,6 +160,7 @@ public class AsyncProcessingService {
             EmotionAnalysisResult analysis = null;
             Map<String, String> openSmileResult = null;
             StringBuilder errorBuilder = new StringBuilder();
+            com.duckchat.api.dto.VoiceMetadata voiceMetadata = null;
             try {
                 analysis = analysisFuture.get();
             } catch (Exception e) {
@@ -157,7 +173,6 @@ public class AsyncProcessingService {
                 errorBuilder.append("[openSMILE 예외] ").append(e.getMessage()).append("; ");
                 System.out.println("[AsyncProcessing] openSMILE 예외: " + e.getMessage());
             }
-            com.duckchat.api.dto.VoiceMetadata voiceMetadata = null;
             if (openSmileResult != null && !openSmileResult.isEmpty()) {
                 try {
                     Double pitch = openSmileResult.get("F0final_sma") != null ? Double.valueOf(openSmileResult.get("F0final_sma")) : null;
@@ -173,6 +188,25 @@ public class AsyncProcessingService {
                     }
                 } catch (Exception e) {
                     System.out.println("[openSMILE→VoiceMetadata 변환 오류] " + e.getMessage());
+                }
+            }
+
+            // 감정 요약을 VoiceMetadata에 추가 (VoiceMetadata 초기화 후)
+            if (emotionSummary.length() > 0) {
+                if (voiceMetadata == null) {
+                    voiceMetadata = new com.duckchat.api.dto.VoiceMetadata();
+                }
+                String currentEmotions = voiceMetadata.getDetectedEmotions();
+                String emotionContext = "\"emotionSummary\":\"" + emotionSummary.toString() + "\"";
+                if (currentEmotions != null && !currentEmotions.isEmpty()) {
+                    // 기존 JSON에 emotionSummary 추가
+                    if (currentEmotions.endsWith("}")) {
+                        voiceMetadata.setDetectedEmotions(currentEmotions.substring(0, currentEmotions.length() - 1) + "," + emotionContext + "}");
+                    } else {
+                        voiceMetadata.setDetectedEmotions(currentEmotions + "," + emotionContext);
+                    }
+                } else {
+                    voiceMetadata.setDetectedEmotions("{" + emotionContext + "}");
                 }
             }
             final String transcriptFinal = transcript;
