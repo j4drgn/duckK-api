@@ -271,14 +271,13 @@ public class OpenAIService {
         String systemMessage = buildSystemMessageWithVoiceMetadata(voiceMetadata);
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("system")
-                .content(systemMessage)
+                .content(systemMessage + " 이전 대화 내용을 기억하고 맥락을 유지하며 답변해줘.")
                 .build());
 
-        // 이전 메시지 히스토리 추가 (시스템 메시지 제외)
-        for (ChatCompletionRequest.Message msg : messageHistory) {
-            if (!"system".equals(msg.getRole())) {
-                messages.add(msg);
-            }
+        // 이전 메시지 히스토리 추가 (최근 20개만)
+        int startIndex = Math.max(0, messageHistory.size() - 20);
+        for (int i = startIndex; i < messageHistory.size(); i++) {
+            messages.add(messageHistory.get(i));
         }
 
         // 새로운 사용자 메시지 추가 (음성 입력임을 표시)

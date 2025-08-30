@@ -21,6 +21,8 @@ public class ProcessingJob {
 
     private String status; // PENDING, RUNNING, DONE, FAILED
 
+    private Long userId; // 사용자 ID 추가
+
     @Lob
     private String transcript;
 
@@ -33,6 +35,8 @@ public class ProcessingJob {
     private String assistantResponse;
 
     private String errorMessage;
+
+    private String chatSessionId; // 대화 세션 ID 추가
 
     private Instant createdAt;
     private Instant updatedAt;

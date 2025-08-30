@@ -223,8 +223,8 @@ public class ChatGPTController {
                                         }
 
                                         if (async) {
-                                                var job = asyncProcessingService.createJob();
-                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", openAIService);
+                                                var job = asyncProcessingService.createJob(user.getId());
+                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", chatSessionId, openAIService);
                                                 // 클라이언트가 폴링해서 확인하도록 jobId 반환
                                                 return ResponseEntity.ok(new ApiResponse<>(true, "작업이 시작되었습니다.", job.getId()));
                                         }
@@ -237,8 +237,8 @@ public class ChatGPTController {
                                                 transcriptionRaw = future.get(7, java.util.concurrent.TimeUnit.SECONDS); // 7초 제한
                                         } catch (java.util.concurrent.TimeoutException e) {
                                                 // 비동기로 전환
-                                                var job = asyncProcessingService.createJob();
-                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", openAIService);
+                                                var job = asyncProcessingService.createJob(user.getId());
+                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", chatSessionId, openAIService);
                                                 return ResponseEntity.ok(new ApiResponse<>(true, "오디오 처리에 시간이 소요되어 비동기 처리로 전환되었습니다. 잠시 후 결과를 확인해주세요.", job.getId()));
                                         } finally {
                                                 executor.shutdown();
@@ -321,8 +321,8 @@ public class ChatGPTController {
                         }
 
                                         if (async) {
-                                                var job = asyncProcessingService.createJob();
-                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", openAIService);
+                                                var job = asyncProcessingService.createJob(user.getId());
+                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", sessionId, openAIService);
                                                 return ResponseEntity.ok(new ApiResponse<>(true, "작업이 시작되었습니다.", job.getId()));
                                         }
 

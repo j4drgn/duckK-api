@@ -12,21 +12,36 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import com.duckchat.api.entity.ChatSession;
+import com.duckchat.api.entity.ChatSessionMessage;
+import com.duckchat.api.entity.ChatMessage;
+import com.duckchat.api.entity.User;
+import com.duckchat.api.repository.UserRepository;
+import com.duckchat.api.dto.openai.ChatCompletionRequest;
+import com.duckchat.api.dto.ChatMessageRequest;
+import com.duckchat.api.entity.ChatMessage.MessageType;
 
 @Service
 public class AsyncProcessingService {
 
     private final ProcessingJobRepository jobRepository;
+    private final ChatService chatService;
+    private final UserRepository userRepository;
 
     @Autowired
-    public AsyncProcessingService(ProcessingJobRepository jobRepository) {
+    public AsyncProcessingService(ProcessingJobRepository jobRepository, ChatService chatService, UserRepository userRepository) {
         this.jobRepository = jobRepository;
+        this.chatService = chatService;
+        this.userRepository = userRepository;
     }
 
-    public ProcessingJob createJob() {
+    public ProcessingJob createJob(Long userId) {
         ProcessingJob j = new ProcessingJob();
         j.setId(UUID.randomUUID().toString());
         j.setStatus("PENDING");
+        j.setUserId(userId);
         jobRepository.save(j);
         return j;
     }
@@ -37,7 +52,7 @@ public class AsyncProcessingService {
     }
 
     @Async("taskExecutor")
-    public Future<ProcessingJob> runTranscriptionAndAnalysis(String jobId, String filePath, String language, OpenAIService openAIService) {
+    public Future<ProcessingJob> runTranscriptionAndAnalysis(String jobId, String filePath, String language, Long chatSessionId, OpenAIService openAIService) {
     // openSMILE 실행파일 및 config 경로 (macOS 빌드 기준)
     final String openSmileExecPath = "/Users/ryugi62/Desktop/해커톤/opensmile/build/progsrc/smilextract/SMILExtract";
     final String openSmileConfigPath = "/Users/ryugi62/Desktop/해커톤/opensmile/config/is09-13/IS13_ComParE.conf";
@@ -49,6 +64,10 @@ public class AsyncProcessingService {
             System.out.println("❌ [AsyncProcessing] Job을 찾을 수 없음: " + jobId);
             return new AsyncResult<>(null);
         }
+
+        // chatSessionId 설정
+        j.setChatSessionId(chatSessionId != null ? chatSessionId.toString() : null);
+        jobRepository.save(j);
 
         System.out.println("🟡 [AsyncProcessing] Job 상태를 RUNNING으로 변경: " + jobId);
         j.setStatus("RUNNING");
@@ -63,6 +82,35 @@ public class AsyncProcessingService {
             System.out.println("📝 [AsyncProcessing] 전사 완료: " + (transcript != null ? transcript.substring(0, Math.min(50, transcript.length())) + "..." : "null"));
             j.setTranscript(transcript);
             jobRepository.save(j);
+
+            // 대화 히스토리 구성 (chatSessionId가 있는 경우)
+            List<ChatCompletionRequest.Message> messageHistory = new ArrayList<>();
+            if (chatSessionId != null && j.getUserId() != null) {
+                try {
+                    User user = userRepository.findById(j.getUserId()).orElse(null);
+                    if (user != null) {
+                        Optional<ChatSession> sessionOpt = chatService.getChatSession(chatSessionId, user);
+                        if (sessionOpt.isPresent()) {
+                            ChatSession session = sessionOpt.get();
+                            List<ChatSessionMessage> sessionMessages = chatService.getSessionMessages(session);
+
+                            // 시스템 메시지 추가 (히스토리에 추가하지 않음 - generateResponseWithHistoryAndVoice에서 처리)
+
+                            // 이전 메시지 히스토리 추가
+                            for (ChatSessionMessage sessionMessage : sessionMessages) {
+                                ChatMessage message = sessionMessage.getMessage();
+                                String role = message.getType() == ChatMessage.MessageType.USER ? "user" : "assistant";
+                                messageHistory.add(ChatCompletionRequest.Message.builder()
+                                        .role(role)
+                                        .content(message.getContent())
+                                        .build());
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("⚠️ [AsyncProcessing] 대화 히스토리 조회 실패: " + e.getMessage());
+                }
+            }
 
             // webm → wav 변환 (ffmpeg 필요)
             String wavPath = filePath.replaceAll("\\.webm$", ".wav");
@@ -128,8 +176,10 @@ public class AsyncProcessingService {
                 }
             }
             final String transcriptFinal = transcript;
+            System.out.println("[AsyncProcessing] 대화 히스토리 개수: " + messageHistory.size());
             final com.duckchat.api.dto.VoiceMetadata voiceMetadataFinal = voiceMetadata;
-            java.util.concurrent.Future<String> assistantFuture = executor.submit(() -> openAIService.generateResponseWithVoice(transcriptFinal, voiceMetadataFinal));
+            final List<ChatCompletionRequest.Message> messageHistoryFinal = messageHistory;
+            java.util.concurrent.Future<String> assistantFuture = executor.submit(() -> openAIService.generateResponseWithHistoryAndVoice(messageHistoryFinal, transcriptFinal, voiceMetadataFinal));
             if (analysis != null) {
                 System.out.println("💭 [AsyncProcessing] 감정 분석 완료: " + analysis.getRawJson());
                 // openSMILE 결과를 analysisJson에 함께 저장(필요시 별도 필드 추가 가능)
@@ -149,6 +199,36 @@ public class AsyncProcessingService {
             String assistant = assistantFuture.get();
             System.out.println("💬 [AsyncProcessing] AI 응답 완료: " + (assistant != null ? assistant.substring(0, Math.min(50, assistant.length())) + "..." : "null"));
             j.setAssistantResponse(assistant);
+
+            // 사용자와 AI 메시지를 채팅 히스토리에 저장
+            if (chatSessionId != null && j.getUserId() != null) {
+                try {
+                    User user = userRepository.findById(j.getUserId()).orElse(null);
+                    if (user != null) {
+                        // 사용자 메시지 저장
+                        ChatMessageRequest userMessageRequest = ChatMessageRequest.builder()
+                                .content(transcript)
+                                .type(MessageType.USER)
+                                .chatSessionId(chatSessionId)
+                                .emotionType(analysis != null ? analysis.getPrimaryEmotion() : null)
+                                .emotionScore(analysis != null && analysis.getConfidence() != null ? analysis.getConfidence() : 0.0)
+                                .isVoiceInput(true)
+                                .build();
+                        chatService.saveMessage(user, userMessageRequest);
+
+                        // AI 응답 저장
+                        ChatMessageRequest aiMessageRequest = ChatMessageRequest.builder()
+                                .content(assistant)
+                                .type(MessageType.ASSISTANT)
+                                .chatSessionId(chatSessionId)
+                                .isVoiceInput(false)
+                                .build();
+                        chatService.saveMessage(user, aiMessageRequest);
+                    }
+                } catch (Exception e) {
+                    System.out.println("⚠️ [AsyncProcessing] 메시지 저장 실패: " + e.getMessage());
+                }
+            }
 
             j.setStatus("DONE");
             jobRepository.save(j);
