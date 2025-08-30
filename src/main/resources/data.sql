@@ -1,12 +1,5 @@
 -- 유튜브 쇼츠 샘플 데이터
 
--- 기존 데이터 삭제 (외래 키 제약 조건 고려)
-DELETE FROM chat_session_messages;
-DELETE FROM chat_sessions;
-DELETE FROM chat_messages;
-DELETE FROM contents;
-DELETE FROM users;
-
 -- 샘플 사용자 데이터
 INSERT INTO users (email, nickname, password, provider, created_at, updated_at) VALUES
 ('uniqueuser@test.com', '테스트유저', '$2a$10$example.hash.for.test', 'LOCAL', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP());
