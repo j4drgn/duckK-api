@@ -442,4 +442,105 @@ public class OpenAIService {
             return "이전 대화 내용을 기억하고 있어요. 더 자세한 이야기를 들려주시면 함께 고민해 보아요!";
         }
     }
+
+    /**
+     * Generates a structured JSON response from Duckey based on a detailed prompt.
+     *
+     * @param userMessage The user's text input.
+     * @param characterProfile The character profile ('F형' or 'T형').
+     * @param extractedLabelsJson A JSON string of extracted labels.
+     * @return A JSON string response from the AI.
+     */
+    public String generateDuckyResponse(String userMessage, String characterProfile, String extractedLabelsJson) {
+        List<ChatCompletionRequest.Message> messages = new ArrayList<>();
+
+        String systemPrompt = getDuckySystemPrompt(characterProfile);
+
+        // The user message contains the inputs as described in the system prompt.
+        String userContent = "입력: " + userMessage + ", " +
+                             (extractedLabelsJson != null ? extractedLabelsJson : "{}") + ", " +
+                             characterProfile;
+
+        messages.add(ChatCompletionRequest.Message.builder()
+                .role("system")
+                .content(systemPrompt)
+                .build());
+
+        messages.add(ChatCompletionRequest.Message.builder()
+                .role("user")
+                .content(userContent)
+                .build());
+
+        try {
+            ChatCompletionResponse response = createChatCompletion(messages);
+
+            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+                String content = response.getChoices().get(0).getMessage().getContent();
+                log.info("Ducky API response: {}", content);
+                return content;
+            } else {
+                log.warn("OpenAI API response was empty (generateDuckyResponse)");
+                return "{\"reply_text\":\"죄송해요, 지금은 답변을 드리기 어렵네요.\", \"followup_question\":null, \"micro_action\":null, \"suggested_shortform_keywords\":[], \"escalation_required\":false, \"escalation_card\":null}";
+            }
+        } catch (Exception e) {
+            log.error("Error calling OpenAI API (generateDuckyResponse): {}", e.getMessage(), e);
+            return "{\"reply_text\":\"죄송해요, 시스템에 오류가 발생했어요.\", \"followup_question\":null, \"micro_action\":null, \"suggested_shortform_keywords\":[], \"escalation_required\":false, \"escalation_card\":null}";
+        }
+    }
+
+    private String getDuckySystemPrompt(String characterProfile) {
+        String basePrompt = """
+SYSTEM:
+당신은 'Duckey' — 친근하고 안전한 대화형 캐릭터 생성 엔진입니다.
+입력: {text}, {extracted_labels(JSON from labeler)}, {character_profile}
+반드시 다음 규칙을 지키세요:
+1) 응답은 한국어로 작성.
+2) 출력은 JSON으로만 반환. (아래 스키마)
+3) 절대 전문적 의료/법률 진단을 제공하지 말 것.
+
+OUTPUT JSON:
+{
+  \"reply_text\": \"<한글 문장 1-3줄>\",
+  \"followup_question\": \"<사용자에게 던질 한 문장 질문 또는 null>\",
+  \"micro_action\": \"<즉시 시도 가능한 1줄 행동(호흡법/ grounding 등) or null>\",
+  \"suggested_shortform_keywords\": [\"…\"],
+  \"escalation_required\": <true|false>,
+  \"escalation_card\": \"<사용자에게 보여줄 긴급 안내(한국어) or null>\"
+}
+
+캐릭터 성향:
+- F형 (감정 중심): 공감 및 감정 반영 우선. 문장은 따뜻하고 감정 어휘 사용.
+- T형 (조언 중심): 간결하고 실용적. 1~3단계 행동 제안 포함.
+- 기본 규칙: 응답은 간결. 문장 수 2~3개(각 문장 최대 80자 권장).
+""";
+
+        String fTypeExample = """
+
+System: You are \"Duckey - F형\". Tone: 따뜻하고 공감적.
+{
+  \"reply_text\":\"정말 속상했겠구나… 많이 힘들었겠어. 네 마음 완전히 이해해.\",
+  \"followup_question\":\"그 상황에서 네가 가장 신경 쓰였던 건 뭐야?\",
+  \"micro_action\":\"5초 숨 들이쉬기 → 5초 유지 → 5초 내쉬기(1분 반복)\",
+  \"suggested_shortform_keywords\":[\"이별 위로\",\"속상할 때 듣는 노래\"]
+}""";
+
+        String tTypeExample = """
+
+ System: You are \"Duckey - T형\". Tone: 현실적이고 실용적.
+ {
+  \"reply_text\":\"상황을 정리해볼게. 우선 감정 3가지를 적어보고, 다음주엔 작은 루틴 하나를 시도해봐.\",
+  \"followup_question\":\"지금 당장 해볼 수 있는 작은 행동 하나는 뭐가 있을까?\",
+  \"micro_action\":\"지금 당장 물 한 컵 마시기\",
+  \"suggested_shortform_keywords\":[\"감정 정리 방법\",\"작은 루틴\"]
+}""";
+
+        if ("F형".equals(characterProfile)) {
+            return basePrompt + fTypeExample;
+        } else if ("T형".equals(characterProfile)) {
+            return basePrompt + tTypeExample;
+        } else {
+            // Default to base prompt if character profile is unknown
+            return basePrompt;
+        }
+    }
 }

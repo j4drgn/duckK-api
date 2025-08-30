@@ -3,6 +3,7 @@ package com.duckchat.api.controller;
 import com.duckchat.api.dto.ApiResponse;
 import com.duckchat.api.dto.ChatRequest;
 import com.duckchat.api.dto.ChatResponse;
+import com.duckchat.api.dto.DuckyChatRequest;
 import com.duckchat.api.dto.openai.ChatCompletionRequest;
 import com.duckchat.api.entity.ChatMessage;
 import com.duckchat.api.entity.ChatSession;
@@ -372,7 +373,7 @@ public class ChatGPTController {
                                 return ResponseEntity.ok(new ApiResponse<>(true, "작업 상태 조회", job));
                         }
 
-    @PostMapping("/chat/session/{sessionId}/voice")
+        @PostMapping("/chat/session/{sessionId}/voice")
     public ResponseEntity<ApiResponse<ChatResponse>> chatWithSessionAndVoice(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable("sessionId") Long sessionId,
@@ -445,4 +446,29 @@ public class ChatGPTController {
                 .build();
 
         return ResponseEntity.ok(new ApiResponse<>(true, "음성 메시지가 성공적으로 처리되었습니다.", response));
-    }}
+    }
+
+    @PostMapping("/ducky-chat")
+    public ResponseEntity<ApiResponse<String>> duckyChat(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody DuckyChatRequest request) {
+
+        // User validation
+        userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        try {
+            String duckyResponseJson = openAIService.generateDuckyResponse(
+                    request.getMessage(),
+                    request.getCharacterProfile(),
+                    request.getExtractedLabelsJson()
+            );
+
+            return ResponseEntity.ok(new ApiResponse<>(true, "Ducky response generated successfully.", duckyResponseJson));
+
+        } catch (Exception e) {
+            log.error("Error during Ducky chat: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "Error generating Ducky response.", null));
+        }
+    }
+}}
