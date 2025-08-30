@@ -471,4 +471,4 @@ public class ChatGPTController {
             return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "Error generating Ducky response.", null));
         }
     }
-}}
+}

@@ -452,6 +452,8 @@ public class OpenAIService {
      * @return A JSON string response from the AI.
      */
     public String generateDuckyResponse(String userMessage, String characterProfile, String extractedLabelsJson) {
+        log.info("Generating Ducky response for characterProfile: {}", characterProfile);
+
         List<ChatCompletionRequest.Message> messages = new ArrayList<>();
 
         String systemPrompt = getDuckySystemPrompt(characterProfile);
@@ -476,7 +478,7 @@ public class OpenAIService {
 
             if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
                 String content = response.getChoices().get(0).getMessage().getContent();
-                log.info("Ducky API response: {}", content);
+                log.info("Ducky API response for {}: {}", characterProfile, content);
                 return content;
             } else {
                 log.warn("OpenAI API response was empty (generateDuckyResponse)");
@@ -489,6 +491,8 @@ public class OpenAIService {
     }
 
     private String getDuckySystemPrompt(String characterProfile) {
+        log.info("Getting system prompt for characterProfile: {}", characterProfile);
+
         String basePrompt = """
 SYSTEM:
 당신은 'Duckey' — 친근하고 안전한 대화형 캐릭터 생성 엔진입니다.
@@ -534,13 +538,18 @@ System: You are \"Duckey - F형\". Tone: 따뜻하고 공감적.
   \"suggested_shortform_keywords\":[\"감정 정리 방법\",\"작은 루틴\"]
 }""";
 
+        String result;
         if ("F형".equals(characterProfile)) {
-            return basePrompt + fTypeExample;
+            result = basePrompt + fTypeExample;
+            log.info("Using F형 system prompt");
         } else if ("T형".equals(characterProfile)) {
-            return basePrompt + tTypeExample;
+            result = basePrompt + tTypeExample;
+            log.info("Using T형 system prompt");
         } else {
-            // Default to base prompt if character profile is unknown
-            return basePrompt;
+            result = basePrompt;
+            log.warn("Unknown characterProfile: {}, using base prompt", characterProfile);
         }
+
+        return result;
     }
 }
