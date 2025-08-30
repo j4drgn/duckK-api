@@ -5,6 +5,8 @@ import com.duckchat.api.dto.VoiceMetadata;
 import com.duckchat.api.dto.EmotionAnalysisResult;
 import com.duckchat.api.dto.openai.ChatCompletionRequest;
 import com.duckchat.api.dto.openai.ChatCompletionResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -27,6 +29,7 @@ public class OpenAIService {
 
     private final RestTemplate restTemplate;
     private final OpenAIConfig openAIConfig;
+    private final ObjectMapper objectMapper;
 
     public ChatCompletionResponse createChatCompletion(List<ChatCompletionRequest.Message> messages) {
         HttpHeaders headers = new HttpHeaders();
@@ -305,8 +308,19 @@ public class OpenAIService {
 
             // OpenAI의 transcription endpoint에 POST
             String response = restTemplate.postForObject(openAIConfig.getOpenaiTranscriptionUrl(), requestEntity, String.class);
-            // 단순히 원시 문자열을 반환; 실제로는 JSON 파싱 필요
-            return response;
+            if (response == null) return null;
+            // OpenAI transcription 응답에는 일반적으로 JSON { "text": "..." } 형태가 돌아옵니다.
+            try {
+                JsonNode node = objectMapper.readTree(response);
+                if (node.has("text")) {
+                    return node.get("text").asText();
+                }
+                // 일부 구현체는 최상위 문자열을 반환할 수 있으므로 그대로 반환
+                return response;
+            } catch (Exception ex) {
+                log.warn("transcription response parsing failed, returning raw response");
+                return response;
+            }
         } catch (Exception e) {
             log.error("transcribeAudioFile error: {}", e.getMessage());
             return null;
@@ -336,10 +350,42 @@ public class OpenAIService {
             ChatCompletionResponse response = createChatCompletion(messages);
             if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
                 String content = response.getChoices().get(0).getMessage().getContent();
-                // 간단 파싱 시도: content가 JSON이면 rawJson에 저장하고 최소 파싱
                 EmotionAnalysisResult result = new EmotionAnalysisResult();
                 result.setRawJson(content);
-                // 고급 파싱을 추가하면 더 정확하게 매핑 가능
+                // GPT가 JSON만 반환하도록 프롬프트를 주었지만, 여전히 추가 텍스트가 섞일 수 있으므로
+                // 문자열에서 JSON 객체를 찾아 파싱 시도
+                try {
+                    // find first '{' and last '}'
+                    int start = content.indexOf('{');
+                    int end = content.lastIndexOf('}');
+                    String jsonPart = content;
+                    if (start >= 0 && end > start) {
+                        jsonPart = content.substring(start, end + 1);
+                    }
+                    JsonNode root = objectMapper.readTree(jsonPart);
+                    if (root.has("primaryEmotion")) {
+                        result.setPrimaryEmotion(root.get("primaryEmotion").asText());
+                    }
+                    if (root.has("confidence")) {
+                        result.setConfidence(root.get("confidence").asDouble());
+                    }
+                    if (root.has("situationLabel")) {
+                        result.setSituationLabel(root.get("situationLabel").asText());
+                    }
+                    if (root.has("recommendationKeywords") && root.get("recommendationKeywords").isArray()) {
+                        List<String> keywords = new ArrayList<>();
+                        for (JsonNode kn : root.get("recommendationKeywords")) {
+                            keywords.add(kn.asText());
+                        }
+                        result.setRecommendationKeywords(keywords);
+                    }
+                    if (root.has("emotionScores") && root.get("emotionScores").isObject()) {
+                        var map = objectMapper.convertValue(root.get("emotionScores"), java.util.Map.class);
+                        result.setEmotionScores(map);
+                    }
+                } catch (Exception ex) {
+                    log.warn("Failed to parse GPT analysis JSON: {}", ex.getMessage());
+                }
                 return result;
             }
         } catch (Exception e) {

@@ -35,6 +35,7 @@ public class ChatGPTController {
     private final OpenAIService openAIService;
     private final ChatService chatService;
     private final UserRepository userRepository;
+        private final com.duckchat.api.service.AsyncProcessingService asyncProcessingService;
 
     // 텍스트 채팅은 음성 채팅만 지원하도록 비활성화
     /*
@@ -194,12 +195,13 @@ public class ChatGPTController {
         return ResponseEntity.ok(new ApiResponse<>(true, "음성 메시지가 성공적으로 처리되었습니다.", response));
     }
 
-        @PostMapping("/chat/voice/file")
-        public ResponseEntity<ApiResponse<ChatResponse>> chatWithVoiceFile(
+                @PostMapping("/chat/voice/file")
+                public ResponseEntity<ApiResponse<Object>> chatWithVoiceFile(
                         @AuthenticationPrincipal UserDetails userDetails,
                         @RequestPart("audio") MultipartFile audio,
                         @RequestPart(value = "meta", required = false) String metaJson,
-                        @RequestParam(value = "chatSessionId", required = false) Long chatSessionId
+                    @RequestParam(value = "chatSessionId", required = false) Long chatSessionId,
+                    @RequestParam(value = "async", required = false, defaultValue = "false") boolean async
         ) {
                 User user = userRepository.findByEmail(userDetails.getUsername())
                                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
@@ -215,11 +217,18 @@ public class ChatGPTController {
                                 fos.write(audio.getBytes());
                         }
 
-                        // OpenAI Whisper 전사 호출
-                        String transcriptionRaw = openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko");
+                                        if (async) {
+                                                var job = asyncProcessingService.createJob();
+                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", openAIService);
+                                                // 클라이언트가 폴링해서 확인하도록 jobId 반환
+                                                return ResponseEntity.ok(new ApiResponse<>(true, "작업이 시작되었습니다.", job.getId()));
+                                        }
 
-                        // 간단: transcriptionRaw가 JSON이면 내부에서 텍스트 추출 필요
-                        String transcriptText = transcriptionRaw != null ? transcriptionRaw : "";
+                                        // OpenAI Whisper 전사 호출 (동기)
+                                        String transcriptionRaw = openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko");
+
+                                        // 간단: transcriptionRaw가 JSON이면 내부에서 텍스트 추출 필요
+                                        String transcriptText = transcriptionRaw != null ? transcriptionRaw : "";
 
                         // 감정/상황 분석
                         // VoiceMetadata 파싱은 생략(클라이언트 metaJson 사용 가능)
@@ -255,12 +264,13 @@ public class ChatGPTController {
                 }
         }
 
-        @PostMapping("/chat/session/{sessionId}/voice/file")
-        public ResponseEntity<ApiResponse<ChatResponse>> chatWithSessionAndVoiceFile(
+                @PostMapping("/chat/session/{sessionId}/voice/file")
+                public ResponseEntity<ApiResponse<Object>> chatWithSessionAndVoiceFile(
                         @AuthenticationPrincipal UserDetails userDetails,
                         @PathVariable("sessionId") Long sessionId,
                         @RequestPart("audio") MultipartFile audio,
-                        @RequestPart(value = "meta", required = false) String metaJson
+                            @RequestPart(value = "meta", required = false) String metaJson,
+                            @RequestParam(value = "async", required = false, defaultValue = "false") boolean async
         ) {
                 // 세션 유효성 검사
                 if (sessionId == null || sessionId <= 0) {
@@ -285,8 +295,14 @@ public class ChatGPTController {
                                 fos.write(audio.getBytes());
                         }
 
-                        String transcriptionRaw = openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko");
-                        String transcriptText = transcriptionRaw != null ? transcriptionRaw : "";
+                                        if (async) {
+                                                var job = asyncProcessingService.createJob();
+                                                asyncProcessingService.runTranscriptionAndAnalysis(job.getId(), tmp.getAbsolutePath(), "ko", openAIService);
+                                                return ResponseEntity.ok(new ApiResponse<>(true, "작업이 시작되었습니다.", job.getId()));
+                                        }
+
+                                        String transcriptionRaw = openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko");
+                                        String transcriptText = transcriptionRaw != null ? transcriptionRaw : "";
 
                         var analysis = openAIService.analyzeTranscriptEmotion(transcriptText, null);
 
@@ -315,6 +331,15 @@ public class ChatGPTController {
                         return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "오디오 처리 중 오류가 발생했습니다.", null));
                 }
         }
+
+                        @GetMapping("/chat/voice/task/{jobId}")
+                        public ResponseEntity<ApiResponse<Object>> getJobStatus(@PathVariable("jobId") String jobId) {
+                                var job = asyncProcessingService.getJob(jobId);
+                                if (job == null) {
+                                        return ResponseEntity.badRequest().body(new ApiResponse<>(false, "존재하지 않는 작업 ID입니다.", null));
+                                }
+                                return ResponseEntity.ok(new ApiResponse<>(true, "작업 상태 조회", job));
+                        }
 
     @PostMapping("/chat/session/{sessionId}/voice")
     public ResponseEntity<ApiResponse<ChatResponse>> chatWithSessionAndVoice(
