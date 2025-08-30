@@ -23,6 +23,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(nullable = false)
+    private String password;
+
     private String nickname;
 
     @Column(name = "profile_image_url")
@@ -58,5 +61,9 @@ public class User {
 
     public void updateMbtiType(String mbtiType) {
         this.mbtiType = mbtiType;
+    }
+
+    public void updatePassword(String password) {
+        this.password = password;
     }
 }
