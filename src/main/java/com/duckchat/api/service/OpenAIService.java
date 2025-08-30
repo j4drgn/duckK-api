@@ -57,8 +57,7 @@ public class OpenAIService {
         // 시스템 메시지 추가 - 챗봇의 성격과 역할 정의
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("system")
-                .content("당신은 덕키(Ducky)라는 친근한 AI 어시스턴트입니다. 사용자의 감정을 이해하고 공감하며, " +
-                        "적절한 문화 콘텐츠(책, 영화, 음악 등)를 추천해 주세요. 답변은 친근하고 간결하게 해주세요.")
+                .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 재미있고 귀엽게 응답해줘. 문화 콘텐츠(책, 영화, 음악 등) 추천도 해줄게~")
                 .build());
         
         // 사용자 메시지 추가
