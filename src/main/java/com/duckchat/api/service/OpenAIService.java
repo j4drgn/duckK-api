@@ -37,7 +37,7 @@ public class OpenAIService {
         headers.setBearerAuth(openAIConfig.getOpenaiApiKey());
 
     ChatCompletionRequest request = ChatCompletionRequest.builder()
-        .model("gpt-3.5-turbo-instant") // turbo-instant로 변경
+    .model("gpt-3.5-turbo") // turbo-instant -> turbo (실제 사용 가능한 모델)
         .messages(messages)
         .temperature(0.5) // 더 빠른 응답을 위해 낮춤
         .max_tokens(256) // 응답 길이 제한
@@ -394,12 +394,12 @@ public class OpenAIService {
                                 result.setEmotionScores(map);
                             }
                         } catch (Exception ex) {
-                            log.warn("Failed to parse GPT analysis JSON: {}", ex.getMessage());
+                            log.warn("Failed to parse GPT analysis JSON: {} | content: {}", ex.getMessage(), content);
                         }
                         return result;
                     }
                 } catch (Exception e) {
-                    log.error("analyzeTranscriptEmotion error: {}", e.getMessage());
+                    log.error("analyzeTranscriptEmotion error: {} | transcript: {}", e.getMessage(), transcript);
                 }
                 return null;
             });

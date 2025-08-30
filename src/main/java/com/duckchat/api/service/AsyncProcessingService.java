@@ -70,8 +70,21 @@ public class AsyncProcessingService {
             java.util.concurrent.Future<EmotionAnalysisResult> analysisFuture = executor.submit(() -> openAIService.analyzeTranscriptEmotion(transcript, null));
             java.util.concurrent.Future<String> assistantFuture = executor.submit(() -> openAIService.generateResponseWithVoice(transcript, null));
 
-            EmotionAnalysisResult analysis = analysisFuture.get();
-            Map<String, String> openSmileResult = openSmileFuture.get();
+            EmotionAnalysisResult analysis = null;
+            Map<String, String> openSmileResult = null;
+            StringBuilder errorBuilder = new StringBuilder();
+            try {
+                analysis = analysisFuture.get();
+            } catch (Exception e) {
+                errorBuilder.append("[감정분석 예외] ").append(e.getMessage()).append("; ");
+                System.out.println("❌ [AsyncProcessing] 감정분석 예외: " + e.getMessage());
+            }
+            try {
+                openSmileResult = openSmileFuture.get();
+            } catch (Exception e) {
+                errorBuilder.append("[openSMILE 예외] ").append(e.getMessage()).append("; ");
+                System.out.println("❌ [AsyncProcessing] openSMILE 예외: " + e.getMessage());
+            }
             if (analysis != null) {
                 System.out.println("💭 [AsyncProcessing] 감정 분석 완료: " + analysis.getRawJson());
                 // openSMILE 결과를 analysisJson에 함께 저장(필요시 별도 필드 추가 가능)
@@ -82,6 +95,10 @@ public class AsyncProcessingService {
                 j.setAnalysisJson(combinedJson);
             } else {
                 System.out.println("⚠️ [AsyncProcessing] 감정 분석 결과 없음");
+                errorBuilder.append("[감정분석 결과 없음]");
+            }
+            if (errorBuilder.length() > 0) {
+                j.setErrorMessage(errorBuilder.toString());
             }
 
             String assistant = assistantFuture.get();
