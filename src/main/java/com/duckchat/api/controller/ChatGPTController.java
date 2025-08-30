@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/chatgpt")
+@RequestMapping("/api/chatgpt")
 @RequiredArgsConstructor
 public class ChatGPTController {
 

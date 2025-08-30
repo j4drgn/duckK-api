@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/contents")
+@RequestMapping("/api/contents")
 @RequiredArgsConstructor
 public class ContentController {
     
