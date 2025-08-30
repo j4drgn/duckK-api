@@ -110,12 +110,39 @@ public class OpenAIService {
                 .content(userMessage)
                 .build());
 
-        ChatCompletionResponse response = createChatCompletion(messages);
+        try {
+            ChatCompletionResponse response = createChatCompletion(messages);
+            
+            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+                String content = response.getChoices().get(0).getMessage().getContent();
+                log.info("OpenAI API response: {}", content);
+                return content;
+            } else {
+                log.warn("OpenAI API 응답이 비어 있습니다.");
+                return getDefaultResponseWithHistory(messageHistory, userMessage);
+            }
+        } catch (Exception e) {
+            log.error("OpenAI API 호출 중 오류 발생: {}", e.getMessage());
+            return getDefaultResponseWithHistory(messageHistory, userMessage);
+        }
+    }
+    
+    private String getDefaultResponseWithHistory(List<ChatCompletionRequest.Message> messageHistory, String userMessage) {
+        // 히스토리에서 마지막 사용자 메시지 추출
+        String lastUserMessage = "";
+        for (int i = messageHistory.size() - 1; i >= 0; i--) {
+            if ("user".equals(messageHistory.get(i).getRole())) {
+                lastUserMessage = messageHistory.get(i).getContent();
+                break;
+            }
+        }
         
-        if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
-            return response.getChoices().get(0).getMessage().getContent();
+        // 히스토리 요약 기반 기본 응답
+        if (lastUserMessage.toLowerCase().contains("알바") || lastUserMessage.toLowerCase().contains("일") || 
+            lastUserMessage.toLowerCase().contains("사람")) {
+            return "이전 대화에서 알바나 사람 관련 이야기를 했었네요. 그 일에 대해 더 자세히 이야기해 주시면 공감하고 도와드릴게요! 😊";
         } else {
-            return "죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다.";
+            return "이전 대화 내용을 기억하고 있어요. 더 자세한 이야기를 들려주시면 함께 고민해 보아요!";
         }
     }
 }
