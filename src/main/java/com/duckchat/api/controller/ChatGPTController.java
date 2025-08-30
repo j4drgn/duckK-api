@@ -4,7 +4,6 @@ import com.duckchat.api.dto.ApiResponse;
 import com.duckchat.api.dto.ChatRequest;
 import com.duckchat.api.dto.ChatResponse;
 import com.duckchat.api.dto.openai.ChatCompletionRequest;
-import com.duckchat.api.entity.AuthProvider;
 import com.duckchat.api.entity.ChatMessage;
 import com.duckchat.api.entity.ChatSession;
 import com.duckchat.api.entity.ChatSessionMessage;
@@ -15,6 +14,8 @@ import com.duckchat.api.service.OpenAIService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import org.springframework.web.bind.annotation.*;
 
@@ -33,18 +34,11 @@ public class ChatGPTController {
 
     @PostMapping("/chat")
     public ResponseEntity<ApiResponse<ChatResponse>> chat(
+            @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChatRequest request) {
         
-        // 개발 환경에서는 임시 사용자 생성
-        User user = userRepository.findByEmail("test@example.com")
-                .orElseGet(() -> {
-                    User newUser = User.builder()
-                            .email("test@example.com")
-                            .nickname("테스트 사용자")
-                            .provider(AuthProvider.LOCAL)
-                            .build();
-                    return userRepository.save(newUser);
-                });
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
         
         // 사용자 메시지 저장
         ChatMessage userMessage = chatService.saveMessage(user, buildChatMessageRequest(request, ChatMessage.MessageType.USER));
@@ -70,19 +64,12 @@ public class ChatGPTController {
 
     @PostMapping("/chat/session/{sessionId}")
     public ResponseEntity<ApiResponse<ChatResponse>> chatWithSession(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable("sessionId") Long sessionId,
             @Valid @RequestBody ChatRequest request) {
         
-        // 개발 환경에서는 임시 사용자 생성
-        User user = userRepository.findByEmail("test@example.com")
-                .orElseGet(() -> {
-                    User newUser = User.builder()
-                            .email("test@example.com")
-                            .nickname("테스트 사용자")
-                            .provider(AuthProvider.LOCAL)
-                            .build();
-                    return userRepository.save(newUser);
-                });
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
         
         // 세션 조회
         Optional<ChatSession> sessionOpt = chatService.getChatSession(sessionId, user);

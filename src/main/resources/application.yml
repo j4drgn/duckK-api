@@ -20,8 +20,9 @@ spring:
 
 server:
   port: ${SERVER_PORT:8090}
+  address: 0.0.0.0
   servlet:
-    context-path: /api
+    context-path: /
 
 jwt:
   secret: ${JWT_SECRET:duckchatdeals_secret_key_should_be_longer_in_production}
