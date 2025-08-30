@@ -272,11 +272,11 @@ public class OpenAIService {
         String systemMessage = buildSystemMessageWithVoiceMetadata(voiceMetadata);
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("system")
-                .content(systemMessage + " 이전 대화 내용을 기억하고 맥락을 유지하며 답변해줘.")
+                .content(systemMessage + " 이전 대화 내용을 반드시 기억하고 맥락을 유지하며 답변해줘. 사용자가 이전 대화를 언급하면 구체적으로 회상해서 응답해줘.")
                 .build());
 
-        // 이전 메시지 히스토리 추가 (최근 20개만)
-        int startIndex = Math.max(0, messageHistory.size() - 20);
+        // 이전 메시지 히스토리 추가 (최근 50개만)
+        int startIndex = Math.max(0, messageHistory.size() - 50);
         for (int i = startIndex; i < messageHistory.size(); i++) {
             messages.add(messageHistory.get(i));
         }
