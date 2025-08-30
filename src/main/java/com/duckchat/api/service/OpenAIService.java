@@ -21,6 +21,7 @@ import org.springframework.core.io.FileSystemResource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -444,29 +445,55 @@ public class OpenAIService {
     }
 
     /**
-     * Generates a structured JSON response from Duckey based on a detailed prompt.
+     * Generates a Ducky response with conversation history context.
      *
-     * @param userMessage The user's text input.
+     * @param userMessage The user's message.
      * @param characterProfile The character profile ('F형' or 'T형').
      * @param extractedLabelsJson A JSON string of extracted labels.
+     * @param conversationHistory A list of previous conversation messages.
      * @return A JSON string response from the AI.
      */
-    public String generateDuckyResponse(String userMessage, String characterProfile, String extractedLabelsJson) {
-        log.info("Generating Ducky response for characterProfile: {}", characterProfile);
+    public String generateDuckyResponse(String userMessage, String characterProfile, String extractedLabelsJson, List<Map<String, Object>> conversationHistory) {
+        log.info("Generating Ducky response for characterProfile: {} with conversation history", characterProfile);
 
         List<ChatCompletionRequest.Message> messages = new ArrayList<>();
 
         String systemPrompt = getDuckySystemPrompt(characterProfile);
 
-        // The user message contains the inputs as described in the system prompt.
-        String userContent = "입력: " + userMessage + ", " +
-                             (extractedLabelsJson != null ? extractedLabelsJson : "{}") + ", " +
-                             characterProfile;
-
+        // Add system message
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("system")
                 .content(systemPrompt)
                 .build());
+
+        // Add conversation history if available
+        if (conversationHistory != null && !conversationHistory.isEmpty()) {
+            log.info("Adding {} previous messages to conversation context", conversationHistory.size());
+            for (Map<String, Object> historyItem : conversationHistory) {
+                String role = "user"; // default
+                String content = "";
+                
+                if (historyItem.containsKey("role")) {
+                    role = (String) historyItem.get("role");
+                }
+                if (historyItem.containsKey("content")) {
+                    content = (String) historyItem.get("content");
+                }
+                
+                // Only add user and assistant messages, skip system messages
+                if ("user".equals(role) || "assistant".equals(role)) {
+                    messages.add(ChatCompletionRequest.Message.builder()
+                            .role(role)
+                            .content(content)
+                            .build());
+                }
+            }
+        }
+
+        // Add current user message with extracted labels
+        String userContent = "입력: " + userMessage + ", " +
+                             (extractedLabelsJson != null ? extractedLabelsJson : "{}") + ", " +
+                             characterProfile;
 
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("user")

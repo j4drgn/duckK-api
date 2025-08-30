@@ -461,7 +461,8 @@ public class ChatGPTController {
             String duckyResponseJson = openAIService.generateDuckyResponse(
                     request.getMessage(),
                     request.getCharacterProfile(),
-                    request.getExtractedLabelsJson()
+                    request.getExtractedLabelsJson(),
+                    request.getConversationHistory()
             );
 
             return ResponseEntity.ok(new ApiResponse<>(true, "Ducky response generated successfully.", duckyResponseJson));
