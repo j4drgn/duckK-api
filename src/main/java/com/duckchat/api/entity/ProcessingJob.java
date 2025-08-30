@@ -29,6 +29,7 @@ public class ProcessingJob {
     private String analysisJson; // EmotionAnalysisResult raw json
 
     @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String assistantResponse;
 
     private String errorMessage;

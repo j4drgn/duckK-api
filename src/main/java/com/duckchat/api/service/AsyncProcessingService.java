@@ -92,8 +92,8 @@ public class AsyncProcessingService {
 
             // 감정분석, openSMILE, AI 응답을 동시에 시작
             java.util.concurrent.Future<EmotionAnalysisResult> analysisFuture = executor.submit(() -> openAIService.analyzeTranscriptEmotion(transcript, null));
-            java.util.concurrent.Future<String> assistantFuture = executor.submit(() -> openAIService.generateResponseWithVoice(transcript, null));
-
+            // openSmileResult를 LLM 프롬프트에 반영하기 위해 전달
+            // openSmileResult(Map) → VoiceMetadata 변환 (try-catch 블록 이후, openSmileResult가 할당된 뒤)
             EmotionAnalysisResult analysis = null;
             Map<String, String> openSmileResult = null;
             StringBuilder errorBuilder = new StringBuilder();
@@ -109,6 +109,27 @@ public class AsyncProcessingService {
                 errorBuilder.append("[openSMILE 예외] ").append(e.getMessage()).append("; ");
                 System.out.println("❌ [AsyncProcessing] openSMILE 예외: " + e.getMessage());
             }
+            com.duckchat.api.dto.VoiceMetadata voiceMetadata = null;
+            if (openSmileResult != null && !openSmileResult.isEmpty()) {
+                try {
+                    Double pitch = openSmileResult.get("F0final_sma") != null ? Double.valueOf(openSmileResult.get("F0final_sma")) : null;
+                    Double volume = openSmileResult.get("pcm_RMSenergy_sma") != null ? Double.valueOf(openSmileResult.get("pcm_RMSenergy_sma")) : null;
+                    Double confidence = openSmileResult.get("voicingFinalUnclipped_sma") != null ? Double.valueOf(openSmileResult.get("voicingFinalUnclipped_sma")) : null;
+                    voiceMetadata = new com.duckchat.api.dto.VoiceMetadata();
+                    voiceMetadata.setPitch(pitch);
+                    voiceMetadata.setVolume(volume);
+                    voiceMetadata.setConfidence(confidence);
+                    // 감정 분석 결과를 VoiceMetadata에 추가
+                    if (analysis != null) {
+                        voiceMetadata.setDetectedEmotions(analysis.getRawJson());
+                    }
+                } catch (Exception e) {
+                    System.out.println("[openSMILE→VoiceMetadata 변환 오류] " + e.getMessage());
+                }
+            }
+            final String transcriptFinal = transcript;
+            final com.duckchat.api.dto.VoiceMetadata voiceMetadataFinal = voiceMetadata;
+            java.util.concurrent.Future<String> assistantFuture = executor.submit(() -> openAIService.generateResponseWithVoice(transcriptFinal, voiceMetadataFinal));
             if (analysis != null) {
                 System.out.println("💭 [AsyncProcessing] 감정 분석 완료: " + analysis.getRawJson());
                 // openSMILE 결과를 analysisJson에 함께 저장(필요시 별도 필드 추가 가능)

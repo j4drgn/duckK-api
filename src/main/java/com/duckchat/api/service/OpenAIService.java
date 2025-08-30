@@ -193,6 +193,16 @@ public class OpenAIService {
             if (metadata.getDetectedEmotions() != null && !metadata.getDetectedEmotions().isEmpty()) {
                 hasValidMetadata = true;
                 systemMessage.append("감지된 감정 정보: ").append(metadata.getDetectedEmotions()).append(" ");
+                // 감정에 따른 응답 스타일 조정
+                if (metadata.getDetectedEmotions().contains("비꼬는") || metadata.getDetectedEmotions().contains("반어") || metadata.getDetectedEmotions().contains("풍자")) {
+                    systemMessage.append("사용자가 비꼬거나 반어적으로 말하고 있어요. 유머러스하게 받아치거나, 진지하게 공감하며 응답하세요. ");
+                } else if (metadata.getDetectedEmotions().contains("화남") || metadata.getDetectedEmotions().contains("분노")) {
+                    systemMessage.append("사용자가 화나 있어요. 진정시키고 공감하며 응답하세요. ");
+                } else if (metadata.getDetectedEmotions().contains("슬픔") || metadata.getDetectedEmotions().contains("우울")) {
+                    systemMessage.append("사용자가 슬퍼해요. 위로하고 공감하며 응답하세요. ");
+                } else if (metadata.getDetectedEmotions().contains("기쁨") || metadata.getDetectedEmotions().contains("행복")) {
+                    systemMessage.append("사용자가 기뻐요. 함께 기뻐하며 응답하세요. ");
+                }
             }
 
             // 유효한 메타데이터가 없는 경우 기본 메시지
@@ -346,7 +356,7 @@ public class OpenAIService {
                     List<ChatCompletionRequest.Message> messages = new ArrayList<>();
                     messages.add(ChatCompletionRequest.Message.builder()
                             .role("system")
-                            .content("당신은 감정 분석가입니다. 아래 사용자의 전사 텍스트를 분석하여 반드시 JSON만 반환하세요. 다음 필드를 포함해야 합니다: primaryEmotion (string), emotionScores (map string->float), situationLabel (string), confidence (0.0-1.0), recommendationKeywords (list). 예시: {\"primaryEmotion\":\"분노\",\"emotionScores\":{\"분노\":0.8,\"슬픔\":0.1},\"situationLabel\":\"불쾌한 상황\",\"confidence\":0.92,\"recommendationKeywords\":[\"진정\",\"휴식\"]}. JSON 외 텍스트, 설명, 인사말, 마크다운, 코드블록, 따옴표 등은 절대 포함하지 마세요.")
+                            .content("당신은 감정 분석가입니다. 아래 사용자의 전사 텍스트를 분석하여 반드시 JSON만 반환하세요. 다음 필드를 포함해야 합니다: primaryEmotion (string), emotionScores (map string->float), situationLabel (string), confidence (0.0-1.0), recommendationKeywords (list). 감정은 긍정, 부정, 중립 외에 비꼬는, 반어, 풍자, 아이러니, 유머러스, 진지, 화남, 슬픔, 기쁨, 불안, 혼란, 당황, 놀람, 실망, 희망, 사랑, 증오, 질투, 자부심, 수치심, 죄책감, 감사, 동정, 공감, 무관심 등 세부적으로 분류하세요. 예시: {\"primaryEmotion\":\"비꼬는\",\"emotionScores\":{\"비꼬는\":0.7,\"불쾌\":0.2,\"유머\":0.1},\"situationLabel\":\"반어적 상황\",\"confidence\":0.85,\"recommendationKeywords\":[\"유머\",\"공감\",\"진지하게 응답\"]}. JSON 외 텍스트, 설명, 인사말, 마크다운, 코드블록, 따옴표 등은 절대 포함하지 마세요.")
                             .build());
 
                     String userContent = "Transcript: " + transcript;

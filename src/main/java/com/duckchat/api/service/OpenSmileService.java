@@ -33,14 +33,20 @@ public class OpenSmileService {
             }
             int exitCode = process.waitFor();
             if (exitCode == 0) {
-                // output.csv에서 주요 감정 특성 추출(간단 예시)
+                // output.csv에서 주요 감정 특성만 추출
                 java.nio.file.Path csvPath = java.nio.file.Paths.get("output.csv");
                 java.util.List<String> lines = java.nio.file.Files.readAllLines(csvPath);
                 if (lines.size() > 1) {
                     String[] headers = lines.get(0).split(",");
                     String[] values = lines.get(1).split(",");
-                    for (int i = 0; i < headers.length && i < values.length; i++) {
-                        result.put(headers[i], values[i]);
+                    // 대표 피처: F0final_sma(평균 pitch), pcm_RMSenergy_sma(에너지), voicingFinalUnclipped_sma(voice prob)
+                    String[] mainFeatures = {"F0final_sma", "pcm_RMSenergy_sma", "voicingFinalUnclipped_sma"};
+                    for (String feat : mainFeatures) {
+                        for (int i = 0; i < headers.length; i++) {
+                            if (headers[i].equals(feat) && i < values.length) {
+                                result.put(feat, values[i]);
+                            }
+                        }
                     }
                 }
             } else {
