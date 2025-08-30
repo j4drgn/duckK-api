@@ -31,8 +31,7 @@ Duck Chat 애플리케이션을 위한 Spring Boot 기반 백엔드 API 서버�
 
 - **데이터베이스**
 
-  - H2 Database (개발 환경)
-  - PostgreSQL (프로덕션 환경)
+  - MySQL (개발 및 프로덕션 환경)
 
 - **기타 라이브러리**
   - Lombok
