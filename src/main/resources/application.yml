@@ -40,3 +40,12 @@ openai:
   api:
     key: ${OPENAI_API_KEY:sk-dummy-api-key-for-development-only}
     url: https://api.openai.com/v1/chat/completions
+
+youtube:
+  api:
+    key: ${YOUTUBE_API_KEY:}
+
+# Upload dir for temporary audio files. In production, set this to a secure directory
+app:
+  upload:
+    dir: ${APP_UPLOAD_DIR:/tmp/duckchat-uploads}

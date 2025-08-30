@@ -20,6 +20,12 @@ public class OpenAIConfig {
     @Value("${openai.transcription.model:whisper-1}")
     private String openaiTranscriptionModel;
 
+    @Value("${app.upload.dir:/tmp/duckchat-uploads}")
+    private String uploadDir;
+
+    @Value("${youtube.api.key:}")
+    private String youtubeApiKey;
+
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
@@ -39,5 +45,13 @@ public class OpenAIConfig {
 
     public String getOpenaiTranscriptionModel() {
         return openaiTranscriptionModel;
+    }
+
+    public String getUploadDir() {
+        return uploadDir;
+    }
+
+    public String getYoutubeApiKey() {
+        return youtubeApiKey;
     }
 }

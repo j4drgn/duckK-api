@@ -36,6 +36,7 @@ public class ChatGPTController {
     private final ChatService chatService;
     private final UserRepository userRepository;
         private final com.duckchat.api.service.AsyncProcessingService asyncProcessingService;
+        private final com.duckchat.api.config.OpenAIConfig openAIConfig;
 
     // 텍스트 채팅은 음성 채팅만 지원하도록 비활성화
     /*
@@ -211,8 +212,10 @@ public class ChatGPTController {
                 }
 
                 try {
-                        // 임시 파일로 저장
-                        File tmp = Files.createTempFile("upload-", audio.getOriginalFilename()).toFile();
+                            // 업로드 디렉토리에 저장
+                            File uploadDir = new File(openAIConfig.getUploadDir());
+                            if (!uploadDir.exists()) uploadDir.mkdirs();
+                            File tmp = new File(uploadDir, "upload-" + System.currentTimeMillis() + "-" + audio.getOriginalFilename());
                         try (FileOutputStream fos = new FileOutputStream(tmp)) {
                                 fos.write(audio.getBytes());
                         }
@@ -290,7 +293,9 @@ public class ChatGPTController {
                 }
 
                 try {
-                        File tmp = Files.createTempFile("upload-", audio.getOriginalFilename()).toFile();
+                            File uploadDir = new File(openAIConfig.getUploadDir());
+                            if (!uploadDir.exists()) uploadDir.mkdirs();
+                            File tmp = new File(uploadDir, "upload-" + System.currentTimeMillis() + "-" + audio.getOriginalFilename());
                         try (FileOutputStream fos = new FileOutputStream(tmp)) {
                                 fos.write(audio.getBytes());
                         }
