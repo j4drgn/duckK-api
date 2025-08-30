@@ -38,9 +38,10 @@ public class AsyncProcessingService {
 
     @Async("taskExecutor")
     public Future<ProcessingJob> runTranscriptionAndAnalysis(String jobId, String filePath, String language, OpenAIService openAIService) {
-        // openSMILE config 경로(환경에 맞게 수정 필요)
-        final String openSmileConfigPath = "/usr/local/opt/opensmile/config/emo/IS13_ComParE.conf";
-        OpenSmileService openSmileService = new OpenSmileService();
+    // openSMILE 실행파일 및 config 경로 (macOS 빌드 기준)
+    final String openSmileExecPath = "/Users/ryugi62/Desktop/해커톤/opensmile/build/progsrc/smilextract/SMILExtract";
+    final String openSmileConfigPath = "/Users/ryugi62/Desktop/해커톤/opensmile/config/is09-13/IS13_ComParE.conf";
+    OpenSmileService openSmileService = new OpenSmileService(openSmileExecPath);
         System.out.println("🔄 [AsyncProcessing] 작업 시작 - jobId: " + jobId + ", filePath: " + filePath);
 
         ProcessingJob j = jobRepository.findById(jobId).orElse(null);
@@ -63,8 +64,31 @@ public class AsyncProcessingService {
             j.setTranscript(transcript);
             jobRepository.save(j);
 
-            // openSMILE 음성 감정 분석(비언어적 신호)
-            java.util.concurrent.Future<Map<String, String>> openSmileFuture = executor.submit(() -> openSmileService.analyzeEmotionWithOpenSmile(filePath, openSmileConfigPath));
+            // webm → wav 변환 (ffmpeg 필요)
+            String wavPath = filePath.replaceAll("\\.webm$", ".wav");
+            try {
+                ProcessBuilder pb = new ProcessBuilder(
+                    "ffmpeg", "-y", "-i", filePath, "-ar", "16000", "-ac", "1", wavPath
+                );
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println("[ffmpeg] " + line);
+                }
+                int exitCode = process.waitFor();
+                if (exitCode != 0) {
+                    System.out.println("❌ [ffmpeg] 변환 실패: " + filePath + " → " + wavPath);
+                } else {
+                    System.out.println("✅ [ffmpeg] 변환 성공: " + wavPath);
+                }
+            } catch (Exception e) {
+                System.out.println("❌ [ffmpeg] 변환 예외: " + e.getMessage());
+            }
+
+            // openSMILE 음성 감정 분석(비언어적 신호) - 변환된 wav 파일 사용
+            java.util.concurrent.Future<Map<String, String>> openSmileFuture = executor.submit(() -> openSmileService.analyzeEmotionWithOpenSmile(wavPath, openSmileConfigPath));
 
             // 감정분석, openSMILE, AI 응답을 동시에 시작
             java.util.concurrent.Future<EmotionAnalysisResult> analysisFuture = executor.submit(() -> openAIService.analyzeTranscriptEmotion(transcript, null));

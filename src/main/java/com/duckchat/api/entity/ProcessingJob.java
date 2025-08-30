@@ -25,6 +25,7 @@ public class ProcessingJob {
     private String transcript;
 
     @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String analysisJson; // EmotionAnalysisResult raw json
 
     @Lob

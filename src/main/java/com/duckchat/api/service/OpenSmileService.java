@@ -6,14 +6,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class OpenSmileService {
+    private final String openSmileExecPath;
+
+    public OpenSmileService(String openSmileExecPath) {
+        this.openSmileExecPath = openSmileExecPath;
+    }
+
     // openSMILE 실행 및 주요 감정 특성 추출
     public Map<String, String> analyzeEmotionWithOpenSmile(String wavFilePath, String openSmileConfigPath) {
         Map<String, String> result = new HashMap<>();
         try {
-            // openSMILE 명령어 구성
+            // openSMILE 명령어 구성 (절대경로 사용)
             String[] command = {
-                "SMILExtract",
-                "-C", openSmileConfigPath, // 예: /usr/local/opt/opensmile/config/emo/IS13_ComParE.conf
+                openSmileExecPath,
+                "-C", openSmileConfigPath,
                 "-I", wavFilePath,
                 "-O", "output.csv"
             };
@@ -28,7 +34,6 @@ public class OpenSmileService {
             int exitCode = process.waitFor();
             if (exitCode == 0) {
                 // output.csv에서 주요 감정 특성 추출(간단 예시)
-                // 실제로는 CSV 파싱 라이브러리 사용 권장
                 java.nio.file.Path csvPath = java.nio.file.Paths.get("output.csv");
                 java.util.List<String> lines = java.nio.file.Files.readAllLines(csvPath);
                 if (lines.size() > 1) {
