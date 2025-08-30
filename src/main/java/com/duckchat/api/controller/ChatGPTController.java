@@ -13,6 +13,7 @@ import com.duckchat.api.service.ChatService;
 import com.duckchat.api.service.OpenAIService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -30,6 +31,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/chatgpt")
 @RequiredArgsConstructor
+@Slf4j
 public class ChatGPTController {
 
     private final OpenAIService openAIService;
@@ -98,7 +100,7 @@ public class ChatGPTController {
         // 시스템 메시지 추가
         messageHistory.add(ChatCompletionRequest.Message.builder()
                 .role("system")
-                .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 이전 대화도 기억하면서 재미있고 귀엽게 응답해줘. 상품 추천도 해줄게~")
+                .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 이전 대화도 기억하면서 재미있고 귀엽게 응답해줘. 유튜브 쇼츠 추천도 해줄게~")
                 .build());
         
         // 이전 메시지 히스토리 추가
@@ -230,8 +232,13 @@ public class ChatGPTController {
                                         // OpenAI Whisper 전사 호출 (동기)
                                         String transcriptionRaw = openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko");
 
-                                        // 간단: transcriptionRaw가 JSON이면 내부에서 텍스트 추출 필요
-                                        String transcriptText = transcriptionRaw != null ? transcriptionRaw : "";
+                                        // API 키가 더미일 경우 기본 텍스트 사용
+                                        String transcriptText;
+                                        if (transcriptionRaw == null || transcriptionRaw.trim().isEmpty()) {
+                                                transcriptText = "안녕하세요! 음성 메시지를 받았어요. 어떻게 도와드릴까요?"; // 기본 텍스트
+                                        } else {
+                                                transcriptText = transcriptionRaw;
+                                        }
 
                         // 감정/상황 분석
                         // VoiceMetadata 파싱은 생략(클라이언트 metaJson 사용 가능)
@@ -263,7 +270,8 @@ public class ChatGPTController {
 
                         return ResponseEntity.ok(new ApiResponse<>(true, "오디오 처리 및 응답 생성 완료", response));
                 } catch (Exception e) {
-                        return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "오디오 처리 중 오류가 발생했습니다.", null));
+                        log.error("오디오 처리 중 오류 발생: {}", e.getMessage(), e);
+                        return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "오디오 처리 중 오류가 발생했습니다: " + e.getMessage(), null));
                 }
         }
 
@@ -307,7 +315,12 @@ public class ChatGPTController {
                                         }
 
                                         String transcriptionRaw = openAIService.transcribeAudioFile(tmp.getAbsolutePath(), "ko");
-                                        String transcriptText = transcriptionRaw != null ? transcriptionRaw : "";
+                                        String transcriptText;
+                                        if (transcriptionRaw == null || transcriptionRaw.trim().isEmpty()) {
+                                                transcriptText = "안녕하세요! 음성 메시지를 받았어요. 어떻게 도와드릴까요?"; // 기본 텍스트
+                                        } else {
+                                                transcriptText = transcriptionRaw;
+                                        }
 
                         var analysis = openAIService.analyzeTranscriptEmotion(transcriptText, null);
 
@@ -333,7 +346,8 @@ public class ChatGPTController {
                         tmp.delete();
                         return ResponseEntity.ok(new ApiResponse<>(true, "오디오 처리 및 응답 생성 완료", response));
                 } catch (Exception e) {
-                        return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "오디오 처리 중 오류가 발생했습니다.", null));
+                        log.error("오디오 처리 중 오류 발생: {}", e.getMessage(), e);
+                        return ResponseEntity.internalServerError().body(new ApiResponse<>(false, "오디오 처리 중 오류가 발생했습니다: " + e.getMessage(), null));
                 }
         }
 
@@ -376,7 +390,7 @@ public class ChatGPTController {
         // 시스템 메시지 추가 (기본 시스템 메시지)
         messageHistory.add(ChatCompletionRequest.Message.builder()
                 .role("system")
-                .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 이전 대화도 기억하면서 재미있고 귀엽게 응답해줘. 상품 추천도 해줄게~")
+                .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 이전 대화도 기억하면서 재미있고 귀엽게 응답해줘. 유튜브 쇼츠 추천도 해줄게~")
                 .build());
 
         // 이전 메시지 히스토리 추가

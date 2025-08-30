@@ -15,7 +15,7 @@ spring:
     database-platform: org.hibernate.dialect.MySQL8Dialect
   sql:
     init:
-      mode: never
+      mode: always
       encoding: UTF-8
 
 server:

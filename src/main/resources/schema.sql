@@ -48,27 +48,8 @@ CREATE TABLE IF NOT EXISTS chat_session_messages (
     FOREIGN KEY (message_id) REFERENCES chat_messages(id)
 );
 
--- 콘텐츠 테이블
+-- 문화 콘텐츠 테이블 (유튜브 쇼츠 전용)
 CREATE TABLE IF NOT EXISTS contents (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    chat_session_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    content_type VARCHAR(50) NOT NULL,
-    content_url TEXT,
-    thumbnail_url TEXT,
-    metadata TEXT,
-    is_viewed BOOLEAN DEFAULT FALSE,
-    viewed_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id)
-);
-
--- 문화 콘텐츠 테이블 (기존 data.sql 파일에서 사용하는 테이블)
-CREATE TABLE IF NOT EXISTS cultural_contents (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,

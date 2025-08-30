@@ -1,5 +1,6 @@
 package com.duckchat.api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,6 +23,7 @@ public class ChatSession {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -38,6 +40,7 @@ public class ChatSession {
     @Column(name = "is_active")
     private Boolean isActive;
 
+    @JsonIgnore
     @Builder.Default
     @OneToMany(mappedBy = "chatSession", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChatSessionMessage> messages = new ArrayList<>();

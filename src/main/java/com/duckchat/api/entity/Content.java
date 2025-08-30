@@ -25,7 +25,7 @@ public class Content {
     @Column(length = 2000)
     private String description;
 
-    // 콘텐츠 유형: BOOK, MOVIE, MUSIC, PODCAST 등
+    // 콘텐츠 유형: YOUTUBE_SHORTS (유튜브 쇼츠만 지원)
     @Column(nullable = false)
     private String type;
     
