@@ -437,7 +437,7 @@ public class OpenAIService {
         // 히스토리 요약 기반 기본 응답
         if (lastUserMessage.toLowerCase().contains("알바") || lastUserMessage.toLowerCase().contains("일") ||
             lastUserMessage.toLowerCase().contains("사람")) {
-            return "이전 대화에서 알바나 사람 관련 이야기를 했었네요. 그 일에 대해 더 자세히 이야기해 주시면 공감하고 도와드릴게요! 😊";
+            return "이전 대화에서 알바나 사람 관련 이야기를 했었네요. 그 일에 대해 더 자세히 이야기해 주시면 공감하고 도와드릴게요!";
         } else {
             return "이전 대화 내용을 기억하고 있어요. 더 자세한 이야기를 들려주시면 함께 고민해 보아요!";
         }
@@ -479,14 +479,14 @@ public class OpenAIService {
             if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
                 String content = response.getChoices().get(0).getMessage().getContent();
                 log.info("Ducky API response for {}: {}", characterProfile, content);
-                return content;
+                return content; // 일반 텍스트로 반환
             } else {
                 log.warn("OpenAI API response was empty (generateDuckyResponse)");
-                return "{\"reply_text\":\"죄송해요, 지금은 답변을 드리기 어렵네요.\", \"followup_question\":null, \"micro_action\":null, \"suggested_shortform_keywords\":[], \"escalation_required\":false, \"escalation_card\":null}";
+                return "죄송해요, 지금은 답변을 드리기 어렵네요.";
             }
         } catch (Exception e) {
             log.error("Error calling OpenAI API (generateDuckyResponse): {}", e.getMessage(), e);
-            return "{\"reply_text\":\"죄송해요, 시스템에 오류가 발생했어요.\", \"followup_question\":null, \"micro_action\":null, \"suggested_shortform_keywords\":[], \"escalation_required\":false, \"escalation_card\":null}";
+            return "죄송해요, 시스템에 오류가 발생했어요.";
         }
     }
 
@@ -499,18 +499,8 @@ SYSTEM:
 입력: {text}, {extracted_labels(JSON from labeler)}, {character_profile}
 반드시 다음 규칙을 지키세요:
 1) 응답은 한국어로 작성.
-2) 출력은 JSON으로만 반환. (아래 스키마)
+2) 출력은 일반 텍스트로 반환 (JSON 아님).
 3) 절대 전문적 의료/법률 진단을 제공하지 말 것.
-
-OUTPUT JSON:
-{
-  \"reply_text\": \"<한글 문장 1-3줄>\",
-  \"followup_question\": \"<사용자에게 던질 한 문장 질문 또는 null>\",
-  \"micro_action\": \"<즉시 시도 가능한 1줄 행동(호흡법/ grounding 등) or null>\",
-  \"suggested_shortform_keywords\": [\"…\"],
-  \"escalation_required\": <true|false>,
-  \"escalation_card\": \"<사용자에게 보여줄 긴급 안내(한국어) or null>\"
-}
 
 캐릭터 성향:
 - F형 (감정 중심): 공감 및 감정 반영 우선. 문장은 따뜻하고 감정 어휘 사용.
@@ -521,22 +511,14 @@ OUTPUT JSON:
         String fTypeExample = """
 
 System: You are \"Duckey - F형\". Tone: 따뜻하고 공감적.
-{
-  \"reply_text\":\"정말 속상했겠구나… 많이 힘들었겠어. 네 마음 완전히 이해해.\",
-  \"followup_question\":\"그 상황에서 네가 가장 신경 쓰였던 건 뭐야?\",
-  \"micro_action\":\"5초 숨 들이쉬기 → 5초 유지 → 5초 내쉬기(1분 반복)\",
-  \"suggested_shortform_keywords\":[\"이별 위로\",\"속상할 때 듣는 노래\"]
-}""";
+응답 예시: "정말 속상했겠구나… 많이 힘들었겠어. 네 마음 완전히 이해해. 그 상황에서 네가 가장 신경 쓰였던 건 뭐야?"
+""";
 
         String tTypeExample = """
 
  System: You are \"Duckey - T형\". Tone: 현실적이고 실용적.
- {
-  \"reply_text\":\"상황을 정리해볼게. 우선 감정 3가지를 적어보고, 다음주엔 작은 루틴 하나를 시도해봐.\",
-  \"followup_question\":\"지금 당장 해볼 수 있는 작은 행동 하나는 뭐가 있을까?\",
-  \"micro_action\":\"지금 당장 물 한 컵 마시기\",
-  \"suggested_shortform_keywords\":[\"감정 정리 방법\",\"작은 루틴\"]
-}""";
+ 응답 예시: "상황을 정리해볼게. 우선 감정 3가지를 적어보고, 다음주엔 작은 루틴 하나를 시도해봐. 지금 당장 해볼 수 있는 작은 행동 하나는 뭐가 있을까?"
+""";
 
         String result;
         if ("F형".equals(characterProfile)) {

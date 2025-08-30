@@ -57,11 +57,11 @@ public class AsyncProcessingService {
     final String openSmileExecPath = "/Users/ryugi62/Desktop/해커톤/opensmile/build/progsrc/smilextract/SMILExtract";
     final String openSmileConfigPath = "/Users/ryugi62/Desktop/해커톤/opensmile/config/is09-13/IS13_ComParE.conf";
     OpenSmileService openSmileService = new OpenSmileService(openSmileExecPath);
-        System.out.println("🔄 [AsyncProcessing] 작업 시작 - jobId: " + jobId + ", filePath: " + filePath);
+        System.out.println("[AsyncProcessing] 작업 시작 - jobId: " + jobId + ", filePath: " + filePath);
 
         ProcessingJob j = jobRepository.findById(jobId).orElse(null);
         if (j == null) {
-            System.out.println("❌ [AsyncProcessing] Job을 찾을 수 없음: " + jobId);
+            System.out.println("[AsyncProcessing] Job을 찾을 수 없음: " + jobId);
             return new AsyncResult<>(null);
         }
 
@@ -79,7 +79,7 @@ public class AsyncProcessingService {
             java.util.concurrent.Future<String> transcriptFuture = executor.submit(() -> openAIService.transcribeAudioFile(filePath, language));
             // transcript가 준비되어야 감정분석/AI 응답이 가능하므로, transcript만 우선 빠르게 처리
             String transcript = transcriptFuture.get();
-            System.out.println("📝 [AsyncProcessing] 전사 완료: " + (transcript != null ? transcript.substring(0, Math.min(50, transcript.length())) + "..." : "null"));
+            System.out.println("[AsyncProcessing] 전사 완료: " + (transcript != null ? transcript.substring(0, Math.min(50, transcript.length())) + "..." : "null"));
             j.setTranscript(transcript);
             jobRepository.save(j);
 
@@ -108,7 +108,7 @@ public class AsyncProcessingService {
                         }
                     }
                 } catch (Exception e) {
-                    System.out.println("⚠️ [AsyncProcessing] 대화 히스토리 조회 실패: " + e.getMessage());
+                    System.out.println("[AsyncProcessing] 대화 히스토리 조회 실패: " + e.getMessage());
                 }
             }
 
@@ -127,12 +127,12 @@ public class AsyncProcessingService {
                 }
                 int exitCode = process.waitFor();
                 if (exitCode != 0) {
-                    System.out.println("❌ [ffmpeg] 변환 실패: " + filePath + " → " + wavPath);
+                    System.out.println("[ffmpeg] 변환 실패: " + filePath + " → " + wavPath);
                 } else {
-                    System.out.println("✅ [ffmpeg] 변환 성공: " + wavPath);
+                    System.out.println("[ffmpeg] 변환 성공: " + wavPath);
                 }
             } catch (Exception e) {
-                System.out.println("❌ [ffmpeg] 변환 예외: " + e.getMessage());
+                System.out.println("[ffmpeg] 변환 예외: " + e.getMessage());
             }
 
             // openSMILE 음성 감정 분석(비언어적 신호) - 변환된 wav 파일 사용
@@ -149,13 +149,13 @@ public class AsyncProcessingService {
                 analysis = analysisFuture.get();
             } catch (Exception e) {
                 errorBuilder.append("[감정분석 예외] ").append(e.getMessage()).append("; ");
-                System.out.println("❌ [AsyncProcessing] 감정분석 예외: " + e.getMessage());
+                System.out.println("[AsyncProcessing] 감정분석 예외: " + e.getMessage());
             }
             try {
                 openSmileResult = openSmileFuture.get();
             } catch (Exception e) {
                 errorBuilder.append("[openSMILE 예외] ").append(e.getMessage()).append("; ");
-                System.out.println("❌ [AsyncProcessing] openSMILE 예외: " + e.getMessage());
+                System.out.println("[AsyncProcessing] openSMILE 예외: " + e.getMessage());
             }
             com.duckchat.api.dto.VoiceMetadata voiceMetadata = null;
             if (openSmileResult != null && !openSmileResult.isEmpty()) {
@@ -181,7 +181,7 @@ public class AsyncProcessingService {
             final List<ChatCompletionRequest.Message> messageHistoryFinal = messageHistory;
             java.util.concurrent.Future<String> assistantFuture = executor.submit(() -> openAIService.generateResponseWithHistoryAndVoice(messageHistoryFinal, transcriptFinal, voiceMetadataFinal));
             if (analysis != null) {
-                System.out.println("💭 [AsyncProcessing] 감정 분석 완료: " + analysis.getRawJson());
+                System.out.println("[AsyncProcessing] 감정 분석 완료: " + analysis.getRawJson());
                 // openSMILE 결과를 analysisJson에 함께 저장(필요시 별도 필드 추가 가능)
                 String combinedJson = analysis.getRawJson();
                 if (openSmileResult != null && !openSmileResult.isEmpty()) {
@@ -189,7 +189,7 @@ public class AsyncProcessingService {
                 }
                 j.setAnalysisJson(combinedJson);
             } else {
-                System.out.println("⚠️ [AsyncProcessing] 감정 분석 결과 없음");
+                System.out.println("[AsyncProcessing] 감정 분석 결과 없음");
                 errorBuilder.append("[감정분석 결과 없음]");
             }
             if (errorBuilder.length() > 0) {
@@ -197,7 +197,7 @@ public class AsyncProcessingService {
             }
 
             String assistant = assistantFuture.get();
-            System.out.println("💬 [AsyncProcessing] AI 응답 완료: " + (assistant != null ? assistant.substring(0, Math.min(50, assistant.length())) + "..." : "null"));
+            System.out.println("[AsyncProcessing] AI 응답 완료: " + (assistant != null ? assistant.substring(0, Math.min(50, assistant.length())) + "..." : "null"));
             j.setAssistantResponse(assistant);
 
             // 사용자와 AI 메시지를 채팅 히스토리에 저장
@@ -226,17 +226,17 @@ public class AsyncProcessingService {
                         chatService.saveMessage(user, aiMessageRequest);
                     }
                 } catch (Exception e) {
-                    System.out.println("⚠️ [AsyncProcessing] 메시지 저장 실패: " + e.getMessage());
+                    System.out.println("[AsyncProcessing] 메시지 저장 실패: " + e.getMessage());
                 }
             }
 
             j.setStatus("DONE");
             jobRepository.save(j);
             executor.shutdown();
-            System.out.println("✅ [AsyncProcessing] 작업 완료: " + jobId);
+            System.out.println("[AsyncProcessing] 작업 완료: " + jobId);
 
         } catch (Exception e) {
-            System.out.println("❌ [AsyncProcessing] 작업 실패 - jobId: " + jobId + ", 오류: " + e.getMessage());
+            System.out.println("[AsyncProcessing] 작업 실패 - jobId: " + jobId + ", 오류: " + e.getMessage());
             e.printStackTrace();
             j.setStatus("FAILED");
             j.setErrorMessage(e.getMessage());
