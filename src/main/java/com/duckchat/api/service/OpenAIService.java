@@ -2,6 +2,7 @@ package com.duckchat.api.service;
 
 import com.duckchat.api.config.OpenAIConfig;
 import com.duckchat.api.dto.VoiceMetadata;
+import com.duckchat.api.dto.EmotionAnalysisResult;
 import com.duckchat.api.dto.openai.ChatCompletionRequest;
 import com.duckchat.api.dto.openai.ChatCompletionResponse;
 import lombok.RequiredArgsConstructor;
@@ -9,8 +10,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.core.io.FileSystemResource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -122,26 +127,68 @@ public class OpenAIService {
         systemMessage.append("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. ");
 
         if (metadata != null) {
+            boolean hasValidMetadata = false;
+
             // 음성 특성에 따른 응답 스타일 조정
-            if (metadata.getPitch() != null && metadata.getPitch() > 1.2) {
-                systemMessage.append("사용자가 높은 톤으로 말하고 있어요. 더 밝고 에너지 넘치는 응답을 해주세요. ");
-            } else if (metadata.getPitch() != null && metadata.getPitch() < 0.8) {
-                systemMessage.append("사용자가 낮은 톤으로 말하고 있어요. 더 차분하고 진지한 응답을 해주세요. ");
+            if (metadata.getPitch() != null && metadata.getPitch() != 0.0) {
+                hasValidMetadata = true;
+                if (metadata.getPitch() > 1.2) {
+                    systemMessage.append("사용자가 높은 톤으로 말하고 있어요. 더 밝고 에너지 넘치는 응답을 해주세요. ");
+                } else if (metadata.getPitch() < 0.8) {
+                    systemMessage.append("사용자가 낮은 톤으로 말하고 있어요. 더 차분하고 진지한 응답을 해주세요. ");
+                }
             }
 
-            if (metadata.getSpeed() != null && metadata.getSpeed() > 1.3) {
-                systemMessage.append("사용자가 빠르게 말하고 있어요. 간결하고 빠른 응답을 해주세요. ");
-            } else if (metadata.getSpeed() != null && metadata.getSpeed() < 0.7) {
-                systemMessage.append("사용자가 천천히 말하고 있어요. 더 자세하고 공감하는 응답을 해주세요. ");
+            if (metadata.getSpeed() != null && metadata.getSpeed() != 0.0) {
+                hasValidMetadata = true;
+                if (metadata.getSpeed() > 1.3) {
+                    systemMessage.append("사용자가 빠르게 말하고 있어요. 간결하고 빠른 응답을 해주세요. ");
+                } else if (metadata.getSpeed() < 0.7) {
+                    systemMessage.append("사용자가 천천히 말하고 있어요. 더 자세하고 공감하는 응답을 해주세요. ");
+                }
+            }
+
+            if (metadata.getVolume() != null && metadata.getVolume() != 0.0) {
+                hasValidMetadata = true;
+                if (metadata.getVolume() > 1.5) {
+                    systemMessage.append("사용자가 큰 소리로 말하고 있어요. 더 강한 공감을 표현해주세요. ");
+                } else if (metadata.getVolume() < 0.5) {
+                    systemMessage.append("사용자가 작은 소리로 말하고 있어요. 더 부드럽고 섬세한 응답을 해주세요. ");
+                }
+            }
+
+            if (metadata.getDuration() != null && metadata.getDuration() != 0.0) {
+                hasValidMetadata = true;
+                if (metadata.getDuration() > 30.0) {
+                    systemMessage.append("사용자가 긴 시간 동안 말했어요. 더 자세한 설명을 해주세요. ");
+                } else if (metadata.getDuration() < 5.0) {
+                    systemMessage.append("사용자가 짧게 말했어요. 간결한 응답을 해주세요. ");
+                }
+            }
+
+            if (metadata.getConfidence() != null && metadata.getConfidence() != 0.0) {
+                hasValidMetadata = true;
+                if (metadata.getConfidence() < 0.7) {
+                    systemMessage.append("음성 인식이 불확실해요. 더 명확한 질문을 해주세요. ");
+                }
             }
 
             if (metadata.getIsQuestion() != null && metadata.getIsQuestion()) {
+                hasValidMetadata = true;
                 systemMessage.append("사용자가 의문문으로 말했어요. 질문에 대한 명확한 답변을 해주세요. ");
             }
 
             if (metadata.getDetectedEmotions() != null && !metadata.getDetectedEmotions().isEmpty()) {
+                hasValidMetadata = true;
                 systemMessage.append("감지된 감정 정보: ").append(metadata.getDetectedEmotions()).append(" ");
             }
+
+            // 유효한 메타데이터가 없는 경우 기본 메시지
+            if (!hasValidMetadata) {
+                systemMessage.append("사용자의 음성 입력을 받고 있어요. 더 자연스럽고 친근한 응답을 해주세요. ");
+            }
+        } else {
+            systemMessage.append("사용자의 음성 입력을 받고 있어요. 더 자연스럽고 친근한 응답을 해주세요. ");
         }
 
         systemMessage.append("사용자의 감정을 잘 이해하고 공감해줘. 재미있고 귀엽게 응답해줘. 문화 콘텐츠(책, 영화, 음악 등) 추천도 해줄게~");
@@ -234,6 +281,71 @@ public class OpenAIService {
             log.error("OpenAI API 호출 중 오류 발생: {}", e.getMessage());
             return getDefaultResponseWithHistory(messageHistory, userMessage);
         }
+    }
+
+    // 오디오 파일을 전사(Whisper) 호출
+    // filePath는 서버에 임시 저장된 오디오 파일 경로
+    public String transcribeAudioFile(String filePath, String language) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(openAIConfig.getOpenaiApiKey());
+            // multipart/form-data
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            builder.part("file", new FileSystemResource(filePath));
+            if (openAIConfig.getOpenaiTranscriptionModel() != null) {
+                builder.part("model", openAIConfig.getOpenaiTranscriptionModel());
+            }
+            if (language != null) {
+                builder.part("language", language);
+            }
+
+            MultiValueMap<String, HttpEntity<?>> multipart = builder.build();
+
+            HttpEntity<MultiValueMap<String, HttpEntity<?>>> requestEntity = new HttpEntity(multipart, headers);
+
+            // OpenAI의 transcription endpoint에 POST
+            String response = restTemplate.postForObject(openAIConfig.getOpenaiTranscriptionUrl(), requestEntity, String.class);
+            // 단순히 원시 문자열을 반환; 실제로는 JSON 파싱 필요
+            return response;
+        } catch (Exception e) {
+            log.error("transcribeAudioFile error: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    // 전사 텍스트와 옵션의 VoiceMetadata를 사용해 감정/상황 분석을 수행
+    public EmotionAnalysisResult analyzeTranscriptEmotion(String transcript, VoiceMetadata metadata) {
+        try {
+            // Chat GPT에게 JSON 형식으로 반환하도록 요청
+            List<ChatCompletionRequest.Message> messages = new ArrayList<>();
+            messages.add(ChatCompletionRequest.Message.builder()
+                    .role("system")
+                    .content("당신은 감정 분석가입니다. 아래 사용자의 전사 텍스트를 분석하여 JSON 형식으로 다음 필드를 출력하세요: primaryEmotion (string), emotionScores (map string->float), situationLabel (string), confidence (0.0-1.0), recommendationKeywords (list). 출력 외 다른 텍스트는 포함하지 마세요.")
+                    .build());
+
+            String userContent = "Transcript: " + transcript;
+            if (metadata != null) {
+                userContent += "\nVoiceMetadata: " + metadata.toString();
+            }
+
+            messages.add(ChatCompletionRequest.Message.builder()
+                    .role("user")
+                    .content(userContent)
+                    .build());
+
+            ChatCompletionResponse response = createChatCompletion(messages);
+            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+                String content = response.getChoices().get(0).getMessage().getContent();
+                // 간단 파싱 시도: content가 JSON이면 rawJson에 저장하고 최소 파싱
+                EmotionAnalysisResult result = new EmotionAnalysisResult();
+                result.setRawJson(content);
+                // 고급 파싱을 추가하면 더 정확하게 매핑 가능
+                return result;
+            }
+        } catch (Exception e) {
+            log.error("analyzeTranscriptEmotion error: {}", e.getMessage());
+        }
+        return null;
     }
 
     private String getDefaultResponseWithHistory(List<ChatCompletionRequest.Message> messageHistory, String userMessage) {

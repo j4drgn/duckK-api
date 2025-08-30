@@ -14,6 +14,12 @@ public class OpenAIConfig {
     @Value("${openai.api.url:https://api.openai.com/v1/chat/completions}")
     private String openaiApiUrl;
 
+    @Value("${openai.transcription.url:https://api.openai.com/v1/audio/transcriptions}")
+    private String openaiTranscriptionUrl;
+
+    @Value("${openai.transcription.model:whisper-1}")
+    private String openaiTranscriptionModel;
+
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
@@ -25,5 +31,13 @@ public class OpenAIConfig {
 
     public String getOpenaiApiUrl() {
         return openaiApiUrl;
+    }
+
+    public String getOpenaiTranscriptionUrl() {
+        return openaiTranscriptionUrl;
+    }
+
+    public String getOpenaiTranscriptionModel() {
+        return openaiTranscriptionModel;
     }
 }

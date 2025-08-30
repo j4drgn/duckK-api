@@ -12,6 +12,8 @@ public class VoiceMetadata {
     private Double volume;       // 볼륨
     private Double speed;        // 말하는 속도
     private Double confidence;   // 음성 인식 신뢰도
+    private Double duration;     // 음성 길이 (초)
+    private Integer sampleRate;  // 샘플링 레이트 (Hz)
     private Boolean isQuestion;  // 의문문 여부
     private String audioUrl;     // 녹음된 오디오 파일 URL (선택적)
     private String detectedEmotions; // 감지된 감정들 (JSON 문자열)
