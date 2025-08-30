@@ -64,4 +64,33 @@ public class UserController {
 
         return ResponseEntity.ok(new ApiResponse<>(true, "사용자 정보가 성공적으로 업데이트되었습니다.", userInfoResponse));
     }
+
+    @GetMapping("/me/profile")
+    public ResponseEntity<ApiResponse<String>> getUserProfile(@AuthenticationPrincipal UserDetails userDetails) {
+        String email = userDetails.getUsername();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + email));
+
+        String profileData = user.getProfileData();
+        if (profileData == null) {
+            profileData = "{}"; // 기본 빈 프로필
+        }
+
+        return ResponseEntity.ok(new ApiResponse<>(true, "사용자 프로필을 성공적으로 가져왔습니다.", profileData));
+    }
+
+    @PutMapping("/me/profile")
+    public ResponseEntity<ApiResponse<String>> updateUserProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody String profileData) {
+        
+        String email = userDetails.getUsername();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + email));
+
+        user.setProfileData(profileData);
+        userRepository.save(user);
+
+        return ResponseEntity.ok(new ApiResponse<>(true, "사용자 프로필이 성공적으로 업데이트되었습니다.", profileData));
+    }
 }

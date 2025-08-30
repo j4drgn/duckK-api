@@ -38,6 +38,9 @@ public class User {
     @Column(name = "mbti_type")
     private String mbtiType;
 
+    @Column(name = "profile_data", columnDefinition = "TEXT")
+    private String profileData;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -65,5 +68,9 @@ public class User {
 
     public void updatePassword(String password) {
         this.password = password;
+    }
+
+    public void setProfileData(String profileData) {
+        this.profileData = profileData;
     }
 }
