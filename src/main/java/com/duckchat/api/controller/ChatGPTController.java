@@ -131,6 +131,8 @@ public class ChatGPTController {
                 .emotionType(request.getEmotionType())
                 .emotionScore(request.getEmotionScore())
                 .chatSessionId(request.getChatSessionId())
+                .voiceMetadata(request.getVoiceMetadata())
+                .isVoiceInput(request.getIsVoiceInput())
                 .build();
     }
     
@@ -142,4 +144,104 @@ public class ChatGPTController {
                 .chatSessionId(chatSessionId)
                 .build();
     }
-}
+    
+    @PostMapping("/chat/voice")
+    public ResponseEntity<ApiResponse<ChatResponse>> chatWithVoice(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ChatRequest request) {
+        
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+        
+        // 사용자 메시지 저장 (음성 메타데이터 포함)
+        ChatMessage userMessage = chatService.saveMessage(user, buildChatMessageRequest(request, ChatMessage.MessageType.USER));
+        
+        // 음성 메타데이터를 활용한 ChatGPT API 호출
+        String assistantResponse;
+        if (request.getVoiceMetadata() != null) {
+            assistantResponse = openAIService.generateResponseWithVoice(request.getMessage(), request.getVoiceMetadata());
+        } else {
+            assistantResponse = openAIService.generateResponse(request.getMessage());
+        }
+        
+        // ChatGPT 응답 저장
+        ChatMessage assistantMessage = chatService.saveMessage(user, buildChatMessageRequest(
+                assistantResponse, ChatMessage.MessageType.ASSISTANT, request.getChatSessionId()));
+        
+        // 응답 생성
+        ChatResponse response = ChatResponse.builder()
+                .id(assistantMessage.getId())
+                .content(assistantMessage.getContent())
+                .type(assistantMessage.getType())
+                .timestamp(assistantMessage.getCreatedAt())
+                .chatSessionId(request.getChatSessionId())
+                .build();
+        
+        return ResponseEntity.ok(new ApiResponse<>(true, "음성 메시지가 성공적으로 처리되었습니다.", response));
+    }
+
+    @PostMapping("/chat/session/{sessionId}/voice")
+    public ResponseEntity<ApiResponse<ChatResponse>> chatWithSessionAndVoice(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable("sessionId") Long sessionId,
+            @Valid @RequestBody ChatRequest request) {
+        
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+        
+        // 세션 조회
+        Optional<ChatSession> sessionOpt = chatService.getChatSession(sessionId, user);
+        if (sessionOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(false, "채팅 세션을 찾을 수 없습니다.", null));
+        }
+        
+        ChatSession session = sessionOpt.get();
+        request.setChatSessionId(sessionId);
+        
+        // 세션의 이전 메시지 히스토리 조회
+        List<ChatSessionMessage> sessionMessages = chatService.getSessionMessages(session);
+        List<ChatCompletionRequest.Message> messageHistory = new ArrayList<>();
+        
+        // 시스템 메시지 추가 (기본 시스템 메시지)
+        messageHistory.add(ChatCompletionRequest.Message.builder()
+                .role("system")
+                .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 이전 대화도 기억하면서 재미있고 귀엽게 응답해줘. 상품 추천도 해줄게~")
+                .build());
+        
+        // 이전 메시지 히스토리 추가
+        for (ChatSessionMessage sessionMessage : sessionMessages) {
+            ChatMessage message = sessionMessage.getMessage();
+            String role = message.getType() == ChatMessage.MessageType.USER ? "user" : "assistant";
+            
+            messageHistory.add(ChatCompletionRequest.Message.builder()
+                    .role(role)
+                    .content(message.getContent())
+                    .build());
+        }
+        
+        // 사용자 메시지 저장
+        ChatMessage userMessage = chatService.saveMessage(user, buildChatMessageRequest(request, ChatMessage.MessageType.USER));
+        
+        // 음성 메타데이터를 활용한 ChatGPT API 호출
+        String assistantResponse;
+        if (request.getVoiceMetadata() != null) {
+            assistantResponse = openAIService.generateResponseWithHistoryAndVoice(messageHistory, request.getMessage(), request.getVoiceMetadata());
+        } else {
+            assistantResponse = openAIService.generateResponseWithHistory(messageHistory, request.getMessage());
+        }
+        
+        // ChatGPT 응답 저장
+        ChatMessage assistantMessage = chatService.saveMessage(user, buildChatMessageRequest(
+                assistantResponse, ChatMessage.MessageType.ASSISTANT, sessionId));
+        
+        // 응답 생성
+        ChatResponse response = ChatResponse.builder()
+                .id(assistantMessage.getId())
+                .content(assistantMessage.getContent())
+                .type(assistantMessage.getType())
+                .timestamp(assistantMessage.getCreatedAt())
+                .chatSessionId(sessionId)
+                .build();
+        
+        return ResponseEntity.ok(new ApiResponse<>(true, "음성 메시지가 성공적으로 처리되었습니다.", response));
+    }}

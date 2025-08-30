@@ -1,6 +1,7 @@
 package com.duckchat.api.service;
 
 import com.duckchat.api.config.OpenAIConfig;
+import com.duckchat.api.dto.VoiceMetadata;
 import com.duckchat.api.dto.openai.ChatCompletionRequest;
 import com.duckchat.api.dto.openai.ChatCompletionResponse;
 import lombok.RequiredArgsConstructor;
@@ -53,13 +54,13 @@ public class OpenAIService {
 
     public String generateResponse(String userMessage) {
         List<ChatCompletionRequest.Message> messages = new ArrayList<>();
-        
+
         // 시스템 메시지 추가 - 챗봇의 성격과 역할 정의
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("system")
                 .content("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. 사용자의 감정을 잘 이해하고 공감해줘. 재미있고 귀엽게 응답해줘. 문화 콘텐츠(책, 영화, 음악 등) 추천도 해줄게~")
                 .build());
-        
+
         // 사용자 메시지 추가
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("user")
@@ -68,7 +69,7 @@ public class OpenAIService {
 
         try {
             ChatCompletionResponse response = createChatCompletion(messages);
-            
+
             if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
                 return response.getChoices().get(0).getMessage().getContent();
             } else {
@@ -80,13 +81,80 @@ public class OpenAIService {
             return getDefaultResponse(userMessage);
         }
     }
-    
+
+    // 음성 메타데이터를 활용한 응답 생성
+    public String generateResponseWithVoice(String userMessage, VoiceMetadata voiceMetadata) {
+        List<ChatCompletionRequest.Message> messages = new ArrayList<>();
+
+        // 음성 메타데이터를 고려한 시스템 메시지 생성
+        String systemMessage = buildSystemMessageWithVoiceMetadata(voiceMetadata);
+        messages.add(ChatCompletionRequest.Message.builder()
+                .role("system")
+                .content(systemMessage)
+                .build());
+
+        // 사용자 메시지 추가 (음성 입력임을 표시)
+        String voiceIndicator = voiceMetadata != null ? " [음성 입력] " : "";
+        messages.add(ChatCompletionRequest.Message.builder()
+                .role("user")
+                .content(voiceIndicator + userMessage)
+                .build());
+
+        try {
+            ChatCompletionResponse response = createChatCompletion(messages);
+
+            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+                String content = response.getChoices().get(0).getMessage().getContent();
+                log.info("OpenAI API response with voice metadata: {}", content);
+                return content;
+            } else {
+                log.warn("OpenAI API 응답이 비어 있습니다.");
+                return getDefaultResponse(userMessage);
+            }
+        } catch (Exception e) {
+            log.error("OpenAI API 호출 중 오류 발생: {}", e.getMessage());
+            return getDefaultResponse(userMessage);
+        }
+    }
+
+    private String buildSystemMessageWithVoiceMetadata(VoiceMetadata metadata) {
+        StringBuilder systemMessage = new StringBuilder();
+        systemMessage.append("너는 덕키야! 귀여운 오리 같은 친구 같은 AI야. ");
+
+        if (metadata != null) {
+            // 음성 특성에 따른 응답 스타일 조정
+            if (metadata.getPitch() != null && metadata.getPitch() > 1.2) {
+                systemMessage.append("사용자가 높은 톤으로 말하고 있어요. 더 밝고 에너지 넘치는 응답을 해주세요. ");
+            } else if (metadata.getPitch() != null && metadata.getPitch() < 0.8) {
+                systemMessage.append("사용자가 낮은 톤으로 말하고 있어요. 더 차분하고 진지한 응답을 해주세요. ");
+            }
+
+            if (metadata.getSpeed() != null && metadata.getSpeed() > 1.3) {
+                systemMessage.append("사용자가 빠르게 말하고 있어요. 간결하고 빠른 응답을 해주세요. ");
+            } else if (metadata.getSpeed() != null && metadata.getSpeed() < 0.7) {
+                systemMessage.append("사용자가 천천히 말하고 있어요. 더 자세하고 공감하는 응답을 해주세요. ");
+            }
+
+            if (metadata.getIsQuestion() != null && metadata.getIsQuestion()) {
+                systemMessage.append("사용자가 의문문으로 말했어요. 질문에 대한 명확한 답변을 해주세요. ");
+            }
+
+            if (metadata.getDetectedEmotions() != null && !metadata.getDetectedEmotions().isEmpty()) {
+                systemMessage.append("감지된 감정 정보: ").append(metadata.getDetectedEmotions()).append(" ");
+            }
+        }
+
+        systemMessage.append("사용자의 감정을 잘 이해하고 공감해줘. 재미있고 귀엽게 응답해줘. 문화 콘텐츠(책, 영화, 음악 등) 추천도 해줄게~");
+
+        return systemMessage.toString();
+    }
+
     private String getDefaultResponse(String userMessage) {
         // API 호출 실패 시 기본 응답 제공
-        if (userMessage.toLowerCase().contains("슬픔") || userMessage.toLowerCase().contains("우울") || 
+        if (userMessage.toLowerCase().contains("슬픔") || userMessage.toLowerCase().contains("우울") ||
             userMessage.toLowerCase().contains("슬퍼") || userMessage.toLowerCase().contains("힘들")) {
             return "기분이 안 좋으신가 보네요. 위로가 필요하실 때는 잔잔한 음악이나 따뜻한 영화가 도움이 될 수 있어요. '어바웃 타임'이나 아이유의 '밤편지' 같은 작품은 어떨까요?";
-        } else if (userMessage.toLowerCase().contains("행복") || userMessage.toLowerCase().contains("기쁨") || 
+        } else if (userMessage.toLowerCase().contains("행복") || userMessage.toLowerCase().contains("기쁨") ||
                   userMessage.toLowerCase().contains("좋아") || userMessage.toLowerCase().contains("신나")) {
             return "기분이 좋으시군요! 그런 기분에는 밝고 경쾌한 음악이 어울릴 것 같아요. BTS의 'Dynamite'나 '버터'같은 곡을 추천해 드려요!";
         } else if (userMessage.toLowerCase().contains("책") || userMessage.toLowerCase().contains("독서")) {
@@ -99,10 +167,10 @@ public class OpenAIService {
             return "안녕하세요! 오늘은 어떤 문화 콘텐츠를 추천해 드릴까요? 책, 영화, 음악 중에서 어떤 것에 관심이 있으신가요?";
         }
     }
-    
+
     public String generateResponseWithHistory(List<ChatCompletionRequest.Message> messageHistory, String userMessage) {
         List<ChatCompletionRequest.Message> messages = new ArrayList<>(messageHistory);
-        
+
         // 새로운 사용자 메시지 추가
         messages.add(ChatCompletionRequest.Message.builder()
                 .role("user")
@@ -111,7 +179,7 @@ public class OpenAIService {
 
         try {
             ChatCompletionResponse response = createChatCompletion(messages);
-            
+
             if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
                 String content = response.getChoices().get(0).getMessage().getContent();
                 log.info("OpenAI API response: {}", content);
@@ -125,7 +193,49 @@ public class OpenAIService {
             return getDefaultResponseWithHistory(messageHistory, userMessage);
         }
     }
-    
+
+    // 음성 메타데이터를 활용한 대화 히스토리 기반 응답 생성
+    public String generateResponseWithHistoryAndVoice(List<ChatCompletionRequest.Message> messageHistory, String userMessage, VoiceMetadata voiceMetadata) {
+        List<ChatCompletionRequest.Message> messages = new ArrayList<>();
+
+        // 음성 메타데이터를 고려한 시스템 메시지 추가
+        String systemMessage = buildSystemMessageWithVoiceMetadata(voiceMetadata);
+        messages.add(ChatCompletionRequest.Message.builder()
+                .role("system")
+                .content(systemMessage)
+                .build());
+
+        // 이전 메시지 히스토리 추가 (시스템 메시지 제외)
+        for (ChatCompletionRequest.Message msg : messageHistory) {
+            if (!"system".equals(msg.getRole())) {
+                messages.add(msg);
+            }
+        }
+
+        // 새로운 사용자 메시지 추가 (음성 입력임을 표시)
+        String voiceIndicator = voiceMetadata != null ? " [음성 입력] " : "";
+        messages.add(ChatCompletionRequest.Message.builder()
+                .role("user")
+                .content(voiceIndicator + userMessage)
+                .build());
+
+        try {
+            ChatCompletionResponse response = createChatCompletion(messages);
+
+            if (response != null && response.getChoices() != null && !response.getChoices().isEmpty()) {
+                String content = response.getChoices().get(0).getMessage().getContent();
+                log.info("OpenAI API response with voice metadata: {}", content);
+                return content;
+            } else {
+                log.warn("OpenAI API 응답이 비어 있습니다.");
+                return getDefaultResponseWithHistory(messageHistory, userMessage);
+            }
+        } catch (Exception e) {
+            log.error("OpenAI API 호출 중 오류 발생: {}", e.getMessage());
+            return getDefaultResponseWithHistory(messageHistory, userMessage);
+        }
+    }
+
     private String getDefaultResponseWithHistory(List<ChatCompletionRequest.Message> messageHistory, String userMessage) {
         // 히스토리에서 마지막 사용자 메시지 추출
         String lastUserMessage = "";
@@ -135,9 +245,9 @@ public class OpenAIService {
                 break;
             }
         }
-        
+
         // 히스토리 요약 기반 기본 응답
-        if (lastUserMessage.toLowerCase().contains("알바") || lastUserMessage.toLowerCase().contains("일") || 
+        if (lastUserMessage.toLowerCase().contains("알바") || lastUserMessage.toLowerCase().contains("일") ||
             lastUserMessage.toLowerCase().contains("사람")) {
             return "이전 대화에서 알바나 사람 관련 이야기를 했었네요. 그 일에 대해 더 자세히 이야기해 주시면 공감하고 도와드릴게요! 😊";
         } else {

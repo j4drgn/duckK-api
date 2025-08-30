@@ -18,4 +18,10 @@ public class ChatRequest {
     private Double emotionScore;
     
     private Long chatSessionId;
+    
+    // 음성 메타데이터 (음성 입력 시 사용)
+    private VoiceMetadata voiceMetadata;
+    
+    // 음성 입력 여부
+    private Boolean isVoiceInput = false;
 }
